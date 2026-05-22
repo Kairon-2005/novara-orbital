@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "dashboard": "总览",
+    "roadmap": "学习路线图",
+    "finance": "费用规划",
+    "comms": "沟通中心",
+    "wellness": "健康状况",
+    "homestay": "住家寄宿",
+    "logout": "退出登录"
+  },
+  "parent": {
+    "portalLabel": "家长端",
+    "viewingChild": "正在查看",
+    "readOnly": "（只读）",
+    "dashboardTitle": "孩子概况",
+    "roadmapTitle": "学习路线图",
+    "financeTitle": "费用规划",
+    "commsTitle": "沟通中心",
+    "wellnessTitle": "健康状况",
+    "homestayTitle": "住家寄宿",
+    "upcomingDeadlines": "近期重要日期",
+    "recentAchievements": "近期成就",
+    "readinessScore": "大学录取准备度",
+    "noDeadlines": "近期暂无重要日期",
+    "noAchievements": "暂无成就记录"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "loading": "加载中…",
+    "error": "出现错误，请重试。",
+    "noData": "暂无内容。"
+  }
+}

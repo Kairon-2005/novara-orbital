@@ -1,0 +1,61 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "navigator": "School Navigator",
+    "roadmap": "Roadmap",
+    "calendar": "Calendar",
+    "portfolio": "Portfolio",
+    "finance": "Finance",
+    "wellness": "Wellness",
+    "comms": "Communications",
+    "homestay": "Homestay",
+    "community": "Community",
+    "logout": "Log out"
+  },
+  "auth": {
+    "login": "Log in",
+    "signup": "Sign up",
+    "email": "Email address",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "name": "Full name",
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Log in to your Novara account",
+    "signupTitle": "Create your account",
+    "signupSubtitle": "Start your Singapore education journey",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "forgotPassword": "Forgot password?",
+    "orContinueWith": "Or continue with",
+    "continueGoogle": "Continue with Google",
+    "inviteCode": "Invite code",
+    "joinTitle": "Join as a parent",
+    "joinSubtitle": "Enter the 6-character code from your child"
+  },
+  "onboarding": {
+    "title": "Tell us about yourself",
+    "subtitle": "We'll build your personalised roadmap based on your answers",
+    "currentYear": "What year are you in?",
+    "currentSchool": "Which school are you at?",
+    "currentCurriculum": "Which curriculum?",
+    "targetUniversity": "Target university",
+    "targetProgramme": "Target programme",
+    "interests": "Extracurricular interests & strengths",
+    "budgetRange": "Annual tuition budget (SGD)",
+    "englishLevel": "English proficiency",
+    "notEnrolled": "Not yet enrolled",
+    "generateRoadmap": "Generate my roadmap →",
+    "step": "Step {current} of {total}"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading…",
+    "error": "Something went wrong. Please try again.",
+    "noData": "Nothing here yet."
+  }
+}

@@ -1,0 +1,38 @@
+# ── AI-assisted files (not for repo) ──────────────
+docs/
+mockups/
+Orbital.md
+ad-video.html
+
+# ── Next.js ───────────────────────────────────────
+.next/
+out/
+build/
+
+# ── Dependencies ──────────────────────────────────
+node_modules/
+.npm
+
+# ── Environment (never commit secrets) ────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ── OS ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Testing ───────────────────────────────────────
+coverage/
+
+# ── Misc ──────────────────────────────────────────
+*.log
+.vercel
