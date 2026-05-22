@@ -1,12 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
 
+// useSearchParams() must be inside Suspense — Next.js 14 requirement
 export default function JoinPage() {
-  const router = useRouter()
+  return (
+    <Suspense fallback={null}>
+      <JoinForm />
+    </Suspense>
+  )
+}
+
+function JoinForm() {
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
 
@@ -16,6 +24,7 @@ export default function JoinPage() {
   const [code, setCode] = useState(searchParams.get('code') ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [sent, setSent] = useState(false)
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault()
@@ -23,32 +32,61 @@ export default function JoinPage() {
     setLoading(true)
     setError('')
 
-    // 1. Sign up
-    const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
+    // 1. Sign up — trigger auto-creates profiles row with role: 'parent'.
+    //    Pass inviteCode to the callback URL so linking happens after confirmation.
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { display_name: name, role: 'parent' },
+        emailRedirectTo: `${window.location.origin}/auth/callback?inviteCode=${code.toUpperCase()}`,
+      },
+    })
     if (authError || !authData.user) {
       setError(authError?.message ?? 'Sign up failed.')
       setLoading(false)
       return
     }
 
-    // 2. Create parent profile
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: authData.user.id,
-      role: 'parent',
-      display_name: name,
-    })
-    if (profileError) { setError(profileError.message); setLoading(false); return }
+    // Show "check your email" screen — linking + redirect handled by /auth/callback
+    setSent(true)
+    setLoading(false)
+  }
 
-    // 3. Link to student via invite code
-    const res = await fetch('/api/profile/link-parent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: code.toUpperCase() }),
-    })
-    const result = await res.json()
-    if (!res.ok) { setError(result.error ?? 'Invalid invite code.'); setLoading(false); return }
-
-    router.push('/parent/dashboard')
+  // ── Email sent screen ──────────────────────────────────────────────────────
+  if (sent) {
+    return (
+      <div style={{ width: 440 }}>
+        <div className="bg-white border border-[var(--border)] rounded-2xl p-10 shadow-[0_8px_32px_rgba(26,86,219,0.08),0_2px_8px_rgba(0,0,0,0.04)] text-center">
+          <div className="w-16 h-16 bg-[var(--blue-100)] rounded-full flex items-center justify-center mx-auto mb-5">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+          </div>
+          <h1 className="font-display font-bold text-[20px] text-[var(--t900)] mb-2">
+            Check your email
+          </h1>
+          <p className="text-[13px] text-[var(--t500)] mb-1">We sent a confirmation link to</p>
+          <p className="text-[14px] font-semibold text-[var(--t900)] mb-4">{email}</p>
+          <p className="text-[12px] text-[var(--t400)] leading-relaxed">
+            Click the link in the email to confirm your address. Once confirmed, you&apos;ll be
+            automatically linked to your child&apos;s account.
+          </p>
+          <div className="mt-6 pt-6 border-t border-[var(--border)]">
+            <p className="text-[12px] text-[var(--t400)]">
+              Didn&apos;t receive it?{' '}
+              <button
+                onClick={() => { setSent(false); setError('') }}
+                className="text-[var(--blue)] font-semibold hover:underline"
+              >
+                Try again
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

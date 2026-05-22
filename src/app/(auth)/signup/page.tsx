@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [agreed, setAgreed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [sent, setSent] = useState(false)
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
@@ -24,30 +25,63 @@ export default function SignupPage() {
     setLoading(true)
     setError('')
 
-    // 1. Create Supabase auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
+    // 1. Create Supabase auth user — trigger auto-creates profiles + student_profiles rows.
+    //    emailRedirectTo sends the user to /auth/callback after they confirm.
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { display_name: name, role: 'student' },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
     if (authError || !authData.user) {
       setError(authError?.message ?? 'Sign up failed.')
       setLoading(false)
       return
     }
 
-    // 2. Create profile row
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: authData.user.id,
-      role: 'student',
-      display_name: name,
-    })
-    if (profileError) {
-      setError(profileError.message)
-      setLoading(false)
-      return
-    }
+    // Show "check your email" screen — redirect happens via /auth/callback
+    setSent(true)
+    setLoading(false)
+  }
 
-    // 3. Create student_profile row (empty, filled in onboarding)
-    await supabase.from('student_profiles').insert({ user_id: authData.user.id })
-
-    router.push('/onboarding')
+  // ── Email sent screen ──────────────────────────────────────────────────────
+  if (sent) {
+    return (
+      <div style={{ width: 460 }}>
+        <div className="bg-white border border-[var(--border)] rounded-2xl p-10 shadow-[0_8px_32px_rgba(26,86,219,0.08),0_2px_8px_rgba(0,0,0,0.04)] text-center">
+          <div className="w-16 h-16 bg-[var(--blue-100)] rounded-full flex items-center justify-center mx-auto mb-5">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+          </div>
+          <h1 className="font-display font-bold text-[20px] text-[var(--t900)] mb-2">
+            Check your email
+          </h1>
+          <p className="text-[13px] text-[var(--t500)] mb-1">
+            We sent a confirmation link to
+          </p>
+          <p className="text-[14px] font-semibold text-[var(--t900)] mb-6">{email}</p>
+          <p className="text-[12px] text-[var(--t400)] leading-relaxed">
+            Click the link in the email to verify your address and continue to onboarding.
+            The link expires in 1 hour.
+          </p>
+          <div className="mt-6 pt-6 border-t border-[var(--border)]">
+            <p className="text-[12px] text-[var(--t400)]">
+              Didn&apos;t receive it?{' '}
+              <button
+                onClick={() => { setSent(false); setError('') }}
+                className="text-[var(--blue)] font-semibold hover:underline"
+              >
+                Try again
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
