@@ -37,14 +37,7 @@ export default function LoginPage() {
     if (profile?.role === 'parent') {
       router.push('/parent/dashboard')
     } else {
-      // Check if onboarding is done
-      const { data: sp } = await supabase
-        .from('student_profiles')
-        .select('onboarding_done')
-        .eq('user_id', data.user.id)
-        .single()
-
-      router.push(sp?.onboarding_done ? '/dashboard' : '/onboarding')
+      router.push('/dashboard')
     }
   }
 

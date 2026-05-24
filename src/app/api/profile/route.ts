@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createRouteClient } from '@/db/client'
+import { createRouteClient } from '@/db/server'
 
 // GET /api/profile — current user's profile + student_profile
 export async function GET() {

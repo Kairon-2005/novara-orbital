@@ -62,5 +62,5 @@ export async function GET(request: Request) {
   }
 
   // ── Student signup flow ───────────────────────────────────────────────────
-  return NextResponse.redirect(`${origin}/onboarding`)
+  return NextResponse.redirect(`${origin}/dashboard`)
 }

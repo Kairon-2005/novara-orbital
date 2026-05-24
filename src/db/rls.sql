@@ -11,19 +11,51 @@ returns uuid language sql security definer as $$
   limit 1;
 $$;
 
+-- ── AUTO-CREATE PROFILE ON SIGNUP ────────────────────────────
+-- Runs server-side (SECURITY DEFINER) so RLS is bypassed.
+-- signup/join pages pass display_name + role in signUp options.data.
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, role, display_name)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'role', 'student'),
+    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1))
+  );
+
+  -- Create empty student_profile row for students
+  if coalesce(new.raw_user_meta_data->>'role', 'student') = 'student' then
+    insert into public.student_profiles (user_id) values (new.id);
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
 -- ── PROFILES ─────────────────────────────────────────────────
 
 alter table profiles enable row level security;
 create policy "users read own profile"    on profiles for select using (id = auth.uid());
 create policy "users update own profile"  on profiles for update using (id = auth.uid());
+-- No INSERT policy needed — trigger handles creation via SECURITY DEFINER
 
 alter table student_profiles enable row level security;
-create policy "student owns profile"      on student_profiles for all    using (user_id = auth.uid());
+create policy "student owns profile"       on student_profiles for all    using (user_id = auth.uid());
 create policy "parent reads child profile" on student_profiles for select using (user_id = get_linked_student_id());
 
 alter table parent_links enable row level security;
-create policy "parent reads own link"     on parent_links for select using (parent_id = auth.uid());
-create policy "student reads own link"    on parent_links for select using (student_id = auth.uid());
+create policy "parent reads own link"      on parent_links for select using (parent_id = auth.uid());
+create policy "student reads own link"     on parent_links for select using (student_id = auth.uid());
+create policy "parent inserts own link"    on parent_links for insert with check (parent_id = auth.uid());
 
 -- ── ROADMAP ───────────────────────────────────────────────────
 

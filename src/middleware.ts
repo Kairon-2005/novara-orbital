@@ -24,20 +24,20 @@ export async function middleware(req: NextRequest) {
     }
   )
 
-  // Refresh session — required on every request to keep JWT fresh
-  const { data: { session } } = await supabase.auth.getSession()
+  // getUser() contacts the Auth server to verify the JWT — more secure than getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = req.nextUrl
   const isPublic = PUBLIC_ROUTES.some(r => pathname.startsWith(r))
 
   // Not logged in — send to login
-  if (!session && !isPublic) {
+  if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // Logged in — don't let them sit on auth pages
-  // (login/page.tsx handles the role-based redirect to /dashboard vs /parent/dashboard)
-  if (session && isPublic) {
+  // Logged in — don't let them sit on auth pages.
+  // Send to /dashboard; the layout handles parent vs student routing server-side.
+  if (user && isPublic) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 

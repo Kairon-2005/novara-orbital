@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createRouteClient } from '@/db/client'
+import { createRouteClient } from '@/db/server'
 
 // POST /api/profile/link-parent — parent redeems invite code to link to student
 export async function POST(request: Request) {

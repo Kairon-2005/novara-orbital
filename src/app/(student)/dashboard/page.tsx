@@ -136,7 +136,7 @@ export default async function DashboardPage() {
     await Promise.all([
       supabase.from('profiles').select('display_name').eq('id', session.user.id).single(),
       supabase.from('student_profiles')
-        .select('current_school, current_year, current_curriculum, target_university, target_programme')
+        .select('current_school, current_year, current_curriculum, target_university, target_programme, onboarding_done')
         .eq('user_id', session.user.id).maybeSingle(),
       supabase.from('roadmaps').select('id, raw_json, generated_at')
         .eq('student_id', session.user.id).eq('status', 'active').order('generated_at', { ascending: false }).limit(1).maybeSingle(),
@@ -224,6 +224,22 @@ export default async function DashboardPage() {
 
       {/* ── Page content ────────────────────────────────────────────────── */}
       <div className="p-[28px_36px] flex-1">
+
+        {/* Profile completion banner — shown until onboarding_done */}
+        {!sp?.onboarding_done && (
+          <div className="mb-5 flex items-center gap-4 bg-[var(--amber-50,#FFFBEB)] border border-[#F59E0B]/30 rounded-[10px] px-5 py-3.5">
+            <div className="w-9 h-9 bg-[#FEF3C7] rounded-[9px] flex items-center justify-center flex-shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B45309" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+            </div>
+            <div className="flex-1">
+              <div className="text-[13px] font-semibold text-[var(--amber)]">Complete your profile to unlock all features</div>
+              <div className="text-[12px] text-[var(--t500)] mt-0.5">Add your school, target university, and curriculum so the AI Planner can generate your personalised roadmap.</div>
+            </div>
+            <Link href="/onboarding" className="flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[8px] text-[12px] font-semibold bg-[var(--amber)] text-white hover:opacity-90 transition whitespace-nowrap">
+              Set up profile →
+            </Link>
+          </div>
+        )}
 
         {/* Stat cards */}
         <div className="grid grid-cols-4 gap-4 mb-6">

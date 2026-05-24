@@ -1,28 +1,39 @@
 -- ============================================================
--- Novara — Database Schema
--- Run this in Supabase SQL Editor (once, on a fresh project)
+-- Novara — Database Schema (merged)
+-- Combines Kairon's full feature set with teammate's additions:
+--   schools table, student_documents, document_access,
+--   nationality/age in student_profiles, preferred_language
+--   in profiles, zone in homestay_listings
+-- Run in Supabase SQL Editor on a fresh project.
 -- ============================================================
 
 -- ── USERS & PROFILES ─────────────────────────────────────────
 
 create table profiles (
-  id           uuid primary key references auth.users on delete cascade,
-  role         text not null check (role in ('student', 'parent')),
-  display_name text not null,
-  created_at   timestamptz default now()
+  id                 uuid primary key references auth.users on delete cascade,
+  role               text not null check (role in ('student', 'parent')),
+  display_name       text not null,
+  preferred_language text default 'en' check (preferred_language in ('en', 'zh')),
+  created_at         timestamptz default now()
 );
 
 create table student_profiles (
   id                  uuid primary key default gen_random_uuid(),
   user_id             uuid not null references profiles on delete cascade,
+  -- Background
+  nationality         text,
+  age                 int,
   current_year        text,
   current_school      text,
   current_curriculum  text check (current_curriculum in ('IB','A-Level','AP','O-Level','Not enrolled')),
+  -- Goals
   target_university   text,
   target_programme    text,
+  -- Profile
   interests           text,
   budget_range        text check (budget_range in ('<30k','30-50k','50-80k','>80k')),
   english_level       text check (english_level in ('Beginner','Intermediate','Advanced')),
+  -- Invite
   invite_code         varchar(6) unique,
   onboarding_done     boolean default false,
   created_at          timestamptz default now(),
@@ -36,6 +47,26 @@ create table parent_links (
   student_id  uuid not null references profiles on delete cascade,
   linked_at   timestamptz default now(),
   unique (parent_id, student_id)
+);
+
+-- ── SCHOOL NAVIGATOR ─────────────────────────────────────────
+-- Curated school directory (manually maintained, demo data only)
+
+create table schools (
+  id           uuid primary key default gen_random_uuid(),
+  school_name  text not null,
+  slug         text unique not null,           -- URL-safe identifier e.g. "acs-international"
+  school_type  text not null check (school_type in (
+                 'primary','secondary','jc','poly','university',
+                 'language_school','diploma'
+               )),
+  curriculum   text check (curriculum in ('IB','A-Level','AP','O-Level','Local','Mixed')),
+  zone         text,                            -- Singapore district/area, TBC with teammate
+  address      text,
+  description  text,
+  website      text,
+  is_active    boolean default true,
+  created_at   timestamptz default now()
 );
 
 -- ── ROADMAP ───────────────────────────────────────────────────
@@ -106,6 +137,30 @@ create table readiness_scores (
   gap_analysis  text not null,
   calculated_at timestamptz default now(),
   unique (student_id)
+);
+
+-- ── DOCUMENTS ─────────────────────────────────────────────────
+-- Student uploads stored in Supabase Storage; this table tracks metadata
+
+create table student_documents (
+  id          uuid primary key default gen_random_uuid(),
+  student_id  uuid not null references profiles on delete cascade,
+  file_name   text not null,
+  storage_path text not null,              -- path inside Supabase Storage bucket
+  file_type   text not null check (file_type in (
+                'transcript','report_card','certificate','passport',
+                'visa','medical','application','other'
+              )),
+  upload_date timestamptz default now(),
+  created_at  timestamptz default now()
+);
+
+create table document_access (
+  document_id uuid not null references student_documents on delete cascade,
+  parent_id   uuid not null references profiles on delete cascade,
+  permission  text not null check (permission in ('read', 'edit')),
+  granted_at  timestamptz default now(),
+  primary key (document_id, parent_id)
 );
 
 -- ── PARENT COMMUNICATIONS ─────────────────────────────────────
@@ -198,6 +253,7 @@ create table homestay_listings (
   description      text,
   address          text not null,
   area             text,
+  zone             text,                    -- Singapore district zone (aligned with schools.zone)
   latitude         numeric(9,6),
   longitude        numeric(9,6),
   room_type        text not null check (room_type in ('single','shared','studio')),

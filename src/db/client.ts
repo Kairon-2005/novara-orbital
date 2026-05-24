@@ -1,15 +1,11 @@
-import { createClientComponentClient, createServerComponentClient, createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+// Browser-only Supabase client — safe to import in Client Components
+// For server components and route handlers, import from @/db/server instead
+
+import { createBrowserClient as ssrBrowser } from '@supabase/ssr'
 import type { Database } from '@/types/database'
 
-// ── Browser (Client Components) ──────────────────────────────
+const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
 export const createBrowserClient = () =>
-  createClientComponentClient<Database>()
-
-// ── Server Components ─────────────────────────────────────────
-export const createServerClient = () =>
-  createServerComponentClient<Database>({ cookies })
-
-// ── API Route Handlers ────────────────────────────────────────
-export const createRouteClient = () =>
-  createRouteHandlerClient<Database>({ cookies })
+  ssrBrowser<Database>(URL, ANON)

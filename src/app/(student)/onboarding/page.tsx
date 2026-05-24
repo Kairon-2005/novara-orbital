@@ -45,7 +45,7 @@ export default function OnboardingPage() {
     })
     if (!res.ok) { setError('Failed to save profile. Please try again.'); setLoading(false); return }
 
-    router.push('/roadmap')
+    router.push('/dashboard')
   }
 
   const inputClass = "w-full px-3.5 py-2.5 border border-[var(--border)] rounded-lg text-[13px] text-[var(--t900)] placeholder:text-[var(--t300)] focus:outline-none focus:border-[var(--blue)] focus:ring-2 focus:ring-[var(--blue-100)] transition bg-white"
@@ -66,7 +66,7 @@ export default function OnboardingPage() {
             Tell us about yourself
           </h1>
           <p className="text-[14px] text-[var(--t500)]">
-            We'll build your personalised Singapore education roadmap based on your answers.
+            We&apos;ll build your personalised Singapore education roadmap based on your answers.
           </p>
         </div>
 
@@ -101,7 +101,7 @@ export default function OnboardingPage() {
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className={labelClass}>Current school <span className="text-[var(--t300)] font-normal">(or "Not yet enrolled")</span></label>
+                  <label className={labelClass}>Current school <span className="text-[var(--t300)] font-normal">(or &quot;Not yet enrolled&quot;)</span></label>
                   <input
                     type="text"
                     value={form.current_school}

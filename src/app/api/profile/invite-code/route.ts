@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createRouteClient } from '@/db/client'
+import { createRouteClient } from '@/db/server'
 import { generateInviteCode } from '@/lib/invite-code'
 
 // POST /api/profile/invite-code — generate or regenerate invite code (student only)

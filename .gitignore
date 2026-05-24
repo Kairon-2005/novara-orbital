@@ -36,3 +36,7 @@ coverage/
 # ── Misc ──────────────────────────────────────────
 *.log
 .vercel
+*.Rhistory
+.Rhistory
+tsconfig.tsbuildinfo
+next-env.d.ts

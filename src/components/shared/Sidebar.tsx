@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { createBrowserClient } from '@/db/client'
 
 interface NavItem {
   href: string
@@ -20,6 +21,13 @@ interface SidebarProps {
 
 export function Sidebar({ items, userName, userMeta, isParent, childName }: SidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const supabase = createBrowserClient()
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   return (
     <aside className={cn('sidebar', isParent && 'sidebar-parent')}>
@@ -67,14 +75,25 @@ export function Sidebar({ items, userName, userMeta, isParent, childName }: Side
         )}>
           {userName.charAt(0).toUpperCase()}
         </div>
-        <div>
-          <div className={cn('text-[13px] font-semibold text-[var(--t900)]', isParent && 'font-cn')}>
+        <div className="flex-1 min-w-0">
+          <div className={cn('text-[13px] font-semibold text-[var(--t900)] truncate', isParent && 'font-cn')}>
             {userName}
           </div>
           {userMeta && (
-            <div className="text-[11px] text-[var(--t500)]">{userMeta}</div>
+            <div className="text-[11px] text-[var(--t500)] truncate">{userMeta}</div>
           )}
         </div>
+        <button
+          onClick={handleSignOut}
+          title="Sign out"
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-[var(--t300)] hover:text-[var(--red)] hover:bg-[var(--red-50)] transition"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
       </div>
     </aside>
   )
