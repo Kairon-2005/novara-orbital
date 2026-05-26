@@ -40,3 +40,4 @@ coverage/
 .Rhistory
 tsconfig.tsbuildinfo
 next-env.d.ts
+.env.local.save
