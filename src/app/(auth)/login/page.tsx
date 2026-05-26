@@ -2,11 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
 
 export default function LoginPage() {
-  const router = useRouter()
   const supabase = createBrowserClient()
 
   const [email, setEmail] = useState('')
@@ -27,18 +25,9 @@ export default function LoginPage() {
       return
     }
 
-    // Check role and redirect accordingly
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single()
-
-    if (profile?.role === 'parent') {
-      router.push('/parent/dashboard')
-    } else {
-      router.push('/dashboard')
-    }
+    // Hard redirect so the server component re-renders with fresh session cookies.
+    // The layout then handles parent vs student routing server-side.
+    window.location.href = '/dashboard'
   }
 
   return (
@@ -53,7 +42,7 @@ export default function LoginPage() {
           <div className="font-display font-extrabold text-[24px] text-[var(--t900)]">Novara</div>
         </div>
         <p className="text-[12px] text-[var(--t300)] text-center -mt-5 mb-6">
-          Your path to Singapore's top universities
+          Your path to Singapore&apos;s top universities
         </p>
 
         <h1 className="font-display font-bold text-[20px] text-center text-[var(--t900)] mb-1.5">

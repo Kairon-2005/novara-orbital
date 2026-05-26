@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import type { Database } from '@/types/database'
+import { createRouteClient } from '@/db/server'
 
 // GET /auth/callback
 // Supabase redirects here after the user clicks the confirmation link in their email.
@@ -16,21 +14,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=Missing+confirmation+code`)
   }
 
-  const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (toSet: Array<{ name: string; value: string; options: CookieOptions }>) => {
-          toSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
+  const supabase = createRouteClient()
 
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
   if (exchangeError) {
@@ -43,7 +27,6 @@ export async function GET(request: Request) {
   if (inviteCode) {
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
-      // Look up the student by invite code
       const { data: studentProfile } = await supabase
         .from('student_profiles')
         .select('user_id')
@@ -51,7 +34,6 @@ export async function GET(request: Request) {
         .maybeSingle()
 
       if (studentProfile) {
-        // Insert the parent_link (ignore if already exists)
         await supabase.from('parent_links').insert({
           parent_id: session.user.id,
           student_id: studentProfile.user_id,
