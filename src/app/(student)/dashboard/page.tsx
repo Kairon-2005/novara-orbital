@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/db/server'
+import InviteCodeButton from './InviteCodeButton'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ export default async function DashboardPage() {
     await Promise.all([
       supabase.from('profiles').select('display_name').eq('id', session.user.id).single(),
       supabase.from('student_profiles')
-        .select('current_school, current_year, current_curriculum, target_university, target_programme, onboarding_done')
+        .select('current_school, current_year, current_curriculum, target_university, target_programme, onboarding_done, invite_code')
         .eq('user_id', session.user.id).maybeSingle(),
       supabase.from('roadmaps').select('id, raw_json, generated_at')
         .eq('student_id', session.user.id).eq('status', 'active').order('generated_at', { ascending: false }).limit(1).maybeSingle(),
@@ -452,6 +453,30 @@ export default async function DashboardPage() {
                   <div className="py-5 text-center text-[13px] text-[var(--t500)]">
                     Complete onboarding to see your readiness score.
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* Share with Parent — invite code */}
+            <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+              <div className="px-[18px] py-[14px] border-b border-[var(--border)]">
+                <div className="font-display font-semibold text-[13px] text-[var(--t900)] flex items-center gap-[7px]">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+                  Share with Parent
+                </div>
+              </div>
+              <div className="px-[18px] py-[14px]">
+                <p className="text-[12px] text-[var(--t500)] mb-3 leading-relaxed">
+                  Give your parent this invite code to link their account and view your roadmap and fees.
+                </p>
+                {sp?.invite_code ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 font-mono font-bold text-[22px] text-[var(--blue)] tracking-[0.25em] bg-[var(--blue-50)] rounded-[8px] px-4 py-2.5 text-center">
+                      {sp.invite_code}
+                    </div>
+                  </div>
+                ) : (
+                  <InviteCodeButton />
                 )}
               </div>
             </div>
