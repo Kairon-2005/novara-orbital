@@ -62,7 +62,12 @@ export default function OnboardingPage() {
         onboarding_done: true,
       }),
     })
-    if (!res.ok) { setError('Failed to save profile. Please try again.'); setLoading(false); return }
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({} as { error?: string }))
+      setError(j.error ? `Save failed: ${j.error}` : 'Failed to save profile. Please try again.')
+      setLoading(false)
+      return
+    }
 
     router.push('/dashboard')
   }
