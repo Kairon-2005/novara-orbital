@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createBrowserClient } from '@/db/client'
 import {
-  computeXP, getLevelInfo, computeBadges, ALL_BADGES,
+  computeXP, getLevelInfo, computeBadges, ALL_BADGES, XP_BY_CATEGORY,
   type MockAchievement, type MockMilestone, type MockDocument, type AchievementCategory,
 } from '@/lib/mock-data'
 
@@ -110,9 +110,7 @@ function AchievementItem({ a, onDelete }: {
 
 // ── Add Achievement form ──────────────────────────────────────────────────────
 
-const XP_MAP: Record<AchievementCategory, number> = {
-  competition: 60, academic: 40, cca: 35, volunteer: 30, award: 50, other: 20,
-}
+const XP_MAP = XP_BY_CATEGORY
 
 function AddAchievementForm({ onAdd, onCancel }: {
   onAdd: (a: MockAchievement) => void; onCancel: () => void
@@ -221,6 +219,7 @@ export default function PortfolioClient({
         title:       a.title,
         date:        a.date,
         description: a.description,
+        xp:          a.xp,
       })
       .select('id')
       .single()

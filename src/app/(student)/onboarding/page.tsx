@@ -5,9 +5,23 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
 
 const YEARS = ['Year 7 (12–13)', 'Year 8 (13–14)', 'Year 9 (14–15)', 'Year 10 (15–16)', 'Year 11 (16–17)', 'Year 12 (17–18)', 'Year 13 (18–19)']
-const CURRICULA = ['IB', 'A-Level', 'AP', 'O-Level', 'Not yet enrolled']
-const BUDGETS = ['< SGD 30k / year', 'SGD 30k – 50k', 'SGD 50k – 80k', '> SGD 80k']
+// value must match the DB CHECK constraint; label is what the user sees
+const CURRICULA: Array<{ label: string; value: string }> = [
+  { label: 'IB', value: 'IB' },
+  { label: 'A-Level', value: 'A-Level' },
+  { label: 'AP', value: 'AP' },
+  { label: 'O-Level', value: 'O-Level' },
+  { label: 'Not yet enrolled', value: 'Not enrolled' },
+]
+const BUDGETS: Array<{ label: string; value: string }> = [
+  { label: '< SGD 30k / year', value: '<30k' },
+  { label: 'SGD 30k – 50k', value: '30-50k' },
+  { label: 'SGD 50k – 80k', value: '50-80k' },
+  { label: '> SGD 80k', value: '>80k' },
+]
 const ENGLISH = ['Beginner', 'Intermediate', 'Advanced']
+const NOW_YEAR = new Date().getFullYear()
+const ENROLL_YEARS = Array.from({ length: 9 }, (_, i) => NOW_YEAR + i)
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -19,6 +33,7 @@ export default function OnboardingPage() {
     current_curriculum: '',
     target_university: '',
     target_programme: '',
+    target_enrollment_year: '',
     interests: '',
     budget_range: '',
     english_level: '',
@@ -41,7 +56,11 @@ export default function OnboardingPage() {
     const res = await fetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, onboarding_done: true }),
+      body: JSON.stringify({
+        ...form,
+        target_enrollment_year: Number(form.target_enrollment_year),
+        onboarding_done: true,
+      }),
     })
     if (!res.ok) { setError('Failed to save profile. Please try again.'); setLoading(false); return }
 
@@ -97,7 +116,7 @@ export default function OnboardingPage() {
                   <label className={labelClass}>Current curriculum</label>
                   <select value={form.current_curriculum} onChange={e => set('current_curriculum', e.target.value)} className={selectClass} required>
                     <option value="">Select curriculum…</option>
-                    {CURRICULA.map(c => <option key={c} value={c}>{c}</option>)}
+                    {CURRICULA.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                 </div>
                 <div className="col-span-2">
@@ -145,6 +164,16 @@ export default function OnboardingPage() {
                     required
                   />
                 </div>
+                <div className="col-span-2">
+                  <label className={labelClass}>
+                    Planned university enrollment year
+                    <span className="text-[var(--t300)] font-normal ml-1">(when you aim to start university — sets your roadmap length)</span>
+                  </label>
+                  <select value={form.target_enrollment_year} onChange={e => set('target_enrollment_year', e.target.value)} className={selectClass} required>
+                    <option value="">Select year…</option>
+                    {ENROLL_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -176,7 +205,7 @@ export default function OnboardingPage() {
                     <label className={labelClass}>Annual tuition budget (SGD)</label>
                     <select value={form.budget_range} onChange={e => set('budget_range', e.target.value)} className={selectClass} required>
                       <option value="">Select range…</option>
-                      {BUDGETS.map(b => <option key={b} value={b}>{b}</option>)}
+                      {BUDGETS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
                     </select>
                   </div>
                   <div>

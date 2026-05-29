@@ -123,6 +123,16 @@ export function computeBadges(
   return earned.filter(Boolean)
 }
 
+// Single source of truth for how much XP each achievement category is worth.
+// Used both when persisting a new achievement and when reading existing ones.
+export const XP_BY_CATEGORY: Record<AchievementCategory, number> = {
+  competition: 60, award: 50, academic: 40, cca: 35, volunteer: 30, other: 20,
+}
+
+export function achievementXP(category: AchievementCategory, stored?: number | null): number {
+  return stored ?? XP_BY_CATEGORY[category] ?? 20
+}
+
 export function computeXP(
   achievements: MockAchievement[],
   milestones: MockMilestone[],

@@ -1,7 +1,7 @@
 // Server Component — fetches achievements, milestones, documents from Supabase.
 import { createServerClient } from '@/db/server'
 import PortfolioClient from './PortfolioClient'
-import type { MockAchievement, MockMilestone, MockDocument } from '@/lib/mock-data'
+import { achievementXP, type MockAchievement, type MockMilestone, type MockDocument } from '@/lib/mock-data'
 
 export default async function PortfolioPage() {
   const supabase = createServerClient()
@@ -33,7 +33,7 @@ export default async function PortfolioPage() {
     title:       a.title,
     date:        a.date,
     description: a.description ?? '',
-    xp:          50,
+    xp:          achievementXP(a.category as MockAchievement['category'], a.xp),
   }))
 
   const milestones: MockMilestone[] = (dbMilestones ?? []).map(m => ({

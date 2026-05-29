@@ -68,6 +68,9 @@ If existingMilestones is provided in the user message:
 - Fill gaps the current plan is missing for the student's target university/programme
 - The new plan should feel like a natural evolution of the existing one, not a blank-slate restart
 
+TIMELINE INSTRUCTIONS:
+The user message includes "currentYear" and "enrollmentYear". Produce exactly ONE entry in "years" for EACH calendar year from currentYear through enrollmentYear inclusive, in chronological order, using the real calendar year as the "year" value. The final year (enrollmentYear) is when the student begins university — focus that year on applications, interviews, offers, and enrolment. Do not output years outside this range.
+
 OUTPUT FORMAT (strict JSON):
 {
   "years": [
@@ -90,11 +93,17 @@ OUTPUT FORMAT (strict JSON):
 
 export async function generateRoadmap(
   profile: StudentProfile,
-  existingMilestones?: ExistingMilestone[]
+  existingMilestones?: ExistingMilestone[],
+  timeline?: { currentYear: number; enrollmentYear: number }
 ): Promise<GeneratedRoadmap> {
-  const userContent = existingMilestones && existingMilestones.length > 0
-    ? JSON.stringify({ profile, existingMilestones })
-    : JSON.stringify(profile)
+  const now = new Date().getFullYear()
+  const currentYear = timeline?.currentYear ?? now
+  // Clamp the span so a bad value can't ask the model for dozens of years.
+  const enrollmentYear = Math.max(currentYear, Math.min(timeline?.enrollmentYear ?? currentYear + 4, currentYear + 8))
+
+  const payload: Record<string, unknown> = { profile, currentYear, enrollmentYear }
+  if (existingMilestones && existingMilestones.length > 0) payload.existingMilestones = existingMilestones
+  const userContent = JSON.stringify(payload)
 
   const response = await withTimeout(ai.chat.completions.create({
     model: 'qwen-plus',

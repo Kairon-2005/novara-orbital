@@ -31,7 +31,7 @@ export async function POST() {
   // ── Fetch student profile ─────────────────────────────────────
   const { data: sp, error: spErr } = await supabase
     .from('student_profiles')
-    .select('current_year, current_school, current_curriculum, target_university, target_programme, interests, budget_range, english_level')
+    .select('current_year, current_school, current_curriculum, target_university, target_programme, interests, budget_range, english_level, target_enrollment_year')
     .eq('user_id', user.id)
     .single()
 
@@ -76,8 +76,10 @@ export async function POST() {
   }
 
   // ── Call Qwen AI ──────────────────────────────────────────────
+  const currentYear = new Date().getFullYear()
+  const enrollmentYear = sp.target_enrollment_year ?? currentYear + 4
   try {
-    const roadmap = await generateRoadmap(profile, existingMilestones)
+    const roadmap = await generateRoadmap(profile, existingMilestones, { currentYear, enrollmentYear })
     return NextResponse.json({ roadmap })
   } catch (err) {
     console.error('[roadmap/generate]', err)

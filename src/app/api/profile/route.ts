@@ -32,8 +32,8 @@ export async function PATCH(request: Request) {
 
   const allowedFields = [
     'current_year', 'current_school', 'current_curriculum',
-    'target_university', 'target_programme', 'interests',
-    'budget_range', 'english_level', 'onboarding_done',
+    'target_university', 'target_programme', 'target_enrollment_year',
+    'interests', 'budget_range', 'english_level', 'onboarding_done',
   ]
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }

@@ -32,6 +32,7 @@ export type Database = {
           current_curriculum: string | null; target_university: string | null
           target_programme: string | null; interests: string | null
           budget_range: string | null; english_level: string | null
+          target_enrollment_year: number | null
           invite_code: string | null; onboarding_done: boolean
           created_at: string; updated_at: string
         }
@@ -42,6 +43,7 @@ export type Database = {
           current_curriculum?: string | null; target_university?: string | null
           target_programme?: string | null; interests?: string | null
           budget_range?: string | null; english_level?: string | null
+          target_enrollment_year?: number | null
           invite_code?: string | null; onboarding_done?: boolean
         }
         Update: {
@@ -50,6 +52,7 @@ export type Database = {
           current_curriculum?: string | null; target_university?: string | null
           target_programme?: string | null; interests?: string | null
           budget_range?: string | null; english_level?: string | null
+          target_enrollment_year?: number | null
           invite_code?: string | null; onboarding_done?: boolean
           updated_at?: string
         }
@@ -104,15 +107,16 @@ export type Database = {
         Row: {
           id: string; student_id: string; category: AchievementCategory
           title: string; date: string; description: string | null
-          image_url: string | null; created_at: string
+          image_url: string | null; xp: number | null; created_at: string
         }
         Insert: {
           id?: string; student_id: string; category: AchievementCategory
-          title: string; date: string; description?: string | null; image_url?: string | null
+          title: string; date: string; description?: string | null
+          image_url?: string | null; xp?: number | null
         }
         Update: {
           category?: AchievementCategory; title?: string; date?: string
-          description?: string | null; image_url?: string | null
+          description?: string | null; image_url?: string | null; xp?: number | null
         }
         Relationships: []
       }

@@ -34,6 +34,32 @@ interface RoadmapClientProps {
   documents:          MockDocument[]
   roadmapId:          string | null
   userId:             string
+  currentYear:        number
+  enrollmentYear:     number
+}
+
+// Builds the timeline columns: every calendar year from now to enrolment,
+// plus any year a milestone actually falls in (so nothing is hidden).
+function buildYearMetas(currentYear: number, enrollmentYear: number, milestoneYears: number[]) {
+  const end = Math.max(enrollmentYear, currentYear)
+  const set = new Set<number>()
+  for (let y = currentYear; y <= end; y++) set.add(y)
+  for (const y of milestoneYears) if (Number.isFinite(y)) set.add(y)
+  const years = Array.from(set).sort((a, b) => a - b)
+  return years.map((y, i) => {
+    const toGo = enrollmentYear - y
+    const subtitle =
+      y === enrollmentYear ? 'Target university enrolment 🎓'
+      : y === currentYear  ? 'Current year · build your foundation'
+      : toGo > 0           ? `${toGo} year${toGo === 1 ? '' : 's'} to enrolment`
+      :                      'Continuing milestones'
+    return {
+      year: y,
+      yearLabel: `Year ${i + 1} — ${y}`,
+      subtitle,
+      defaultOpen: y === currentYear,
+    }
+  })
 }
 
 // milestone type → calendar_events type
@@ -159,7 +185,7 @@ function AddMilestoneForm({ year, onAdd, onCancel }: {
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
-    const dueDate = due || `202${4 + year}-12-31`
+    const dueDate = due || `${year}-12-31`
     const month   = due ? parseInt(due.slice(5, 7)) : 12
     onAdd({ id: `m${Date.now()}`, year, month, type, title: title.trim(), description: desc.trim() || 'No description.', due_date: dueDate, completed: false })
     setTitle(''); setDesc(''); setDue('')
@@ -169,7 +195,7 @@ function AddMilestoneForm({ year, onAdd, onCancel }: {
 
   return (
     <form onSubmit={submit} className="mt-3 mb-1 p-4 bg-[var(--blue-50)] border border-[var(--blue-100)] rounded-[10px] flex flex-col gap-3">
-      <div className="font-display font-semibold text-[12px] text-[var(--blue)]">New milestone — Year {year}</div>
+      <div className="font-display font-semibold text-[12px] text-[var(--blue)]">New milestone — {year}</div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Type</label>
@@ -229,9 +255,9 @@ function YearBlock({ year, yearLabel, subtitle, milestones, isCurrentYear, defau
           open ? 'rounded-t-[10px] border-b-transparent' : 'rounded-[10px]'
         }`}
       >
-        <div className="w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold transition-all"
+        <div className="w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold transition-all"
           style={{ background: dotBg, color: dotText }}>
-          {year}
+          {`'${String(year).slice(-2)}`}
         </div>
         <div className="flex-1">
           <div className="font-display font-bold text-[14px] text-[var(--t900)] flex items-center gap-2">
@@ -411,15 +437,8 @@ function AiRoadmapModal({
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-const YEAR_META = [
-  { year: 1, yearLabel: 'Year 1 — 2024/2025', subtitle: 'Foundation year · Establish academic baseline',       defaultOpen: false },
-  { year: 2, yearLabel: 'Year 2 — 2025/2026', subtitle: 'Build competition profile · Start community service', defaultOpen: true  },
-  { year: 3, yearLabel: 'Year 3 — 2026/2027', subtitle: 'IB final year preparation · University applications', defaultOpen: false },
-  { year: 4, yearLabel: 'Year 4 — 2027/2028', subtitle: 'IB examinations · University offers · Gap year',      defaultOpen: false },
-]
-
 export default function RoadmapClient({
-  initialMilestones, initialAchievements, documents, roadmapId, userId,
+  initialMilestones, initialAchievements, documents, roadmapId, userId, currentYear, enrollmentYear,
 }: RoadmapClientProps) {
   const supabase = createBrowserClient()
   const router   = useRouter()
@@ -484,6 +503,8 @@ export default function RoadmapClient({
 
   const xp  = computeXP(initialAchievements, milestones, documents)
   const lvl = getLevelInfo(xp)
+
+  const yearMetas = buildYearMetas(currentYear, enrollmentYear, milestones.map(m => m.year))
 
   const done  = milestones.filter(m => m.completed).length
   const total = milestones.length
@@ -619,12 +640,12 @@ export default function RoadmapClient({
           </div>
         </div>
 
-        {YEAR_META.map(meta => (
+        {yearMetas.map(meta => (
           <YearBlock
             key={meta.year}
             {...meta}
             milestones={milestones.filter(m => m.year === meta.year)}
-            isCurrentYear={meta.year === 1}
+            isCurrentYear={meta.year === currentYear}
             onToggle={handleToggle}
             onDelete={handleDelete}
             onAdd={handleAdd}

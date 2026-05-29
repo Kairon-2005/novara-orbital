@@ -1,13 +1,20 @@
 // Server Component — fetches milestones from Supabase and seeds the client.
 import { createServerClient } from '@/db/server'
 import RoadmapClient from './RoadmapClient'
-import type { MockMilestone, MockAchievement, MockDocument } from '@/lib/mock-data'
+import { achievementXP, type MockMilestone, type MockAchievement, type MockDocument } from '@/lib/mock-data'
 
 export default async function RoadmapPage() {
   const supabase = createServerClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return <p className="p-10 text-red-500">Not authenticated.</p>
+
+  // Planned enrolment year drives the roadmap timeline length
+  const { data: sp } = await supabase
+    .from('student_profiles')
+    .select('target_enrollment_year')
+    .eq('user_id', user.id)
+    .maybeSingle()
 
   // Fetch active roadmap
   const { data: roadmap } = await supabase
@@ -58,7 +65,7 @@ export default async function RoadmapPage() {
     title:       a.title,
     date:        a.date,
     description: a.description ?? '',
-    xp:          50,
+    xp:          achievementXP(a.category as MockAchievement['category'], a.xp),
   }))
 
   const documents: MockDocument[] = (dbDocs ?? []).map(d => ({
@@ -70,6 +77,9 @@ export default async function RoadmapPage() {
     parent_access: false,
   }))
 
+  const currentYear = new Date().getFullYear()
+  const enrollmentYear = sp?.target_enrollment_year ?? currentYear + 4
+
   return (
     <RoadmapClient
       initialMilestones={milestones}
@@ -77,6 +87,8 @@ export default async function RoadmapPage() {
       documents={documents}
       roadmapId={roadmap?.id ?? null}
       userId={user.id}
+      currentYear={currentYear}
+      enrollmentYear={enrollmentYear}
     />
   )
 }
