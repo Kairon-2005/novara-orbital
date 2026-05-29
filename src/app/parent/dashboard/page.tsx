@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/db/server'
+import { computeJourney } from '@/lib/progress'
+import { JourneyCard } from '@/components/ui/JourneyCard'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,20 +34,20 @@ function ProgressBar({ pct, color = 'var(--blue)', height = 7 }: { pct: number; 
 
 export default async function ParentDashboardPage() {
   const supabase = createServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('display_name')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   // Get linked child
   const { data: link } = await supabase
     .from('parent_links')
     .select('student_id')
-    .eq('parent_id', session.user.id)
+    .eq('parent_id', user.id)
     .maybeSingle()
 
   const childId = link?.student_id ?? null
@@ -112,6 +114,26 @@ export default async function ParentDashboardPage() {
   const comms        = commsRes.data ?? []
 
   const readinessScore = readiness?.score ?? 0
+
+  // Child milestone progress — feeds the journey hero so parents see real tracking
+  let milestonesDone = 0, milestonesTotal = 0
+  const { data: childRoadmap } = await supabase
+    .from('roadmaps').select('id')
+    .eq('student_id', childId).eq('status', 'active')
+    .order('generated_at', { ascending: false }).limit(1).maybeSingle()
+  if (childRoadmap?.id) {
+    const { data: ms } = await supabase
+      .from('milestones').select('completed').eq('roadmap_id', childRoadmap.id)
+    milestonesTotal = ms?.length ?? 0
+    milestonesDone  = ms?.filter(m => m.completed).length ?? 0
+  }
+  const journey = computeJourney({
+    readinessScore,
+    milestonesDone,
+    milestonesTotal,
+    achievements: achievements.length,
+  })
+
   const totalFees = fees.reduce((s, f) => s + Number(f.amount_sgd), 0)
   const paidFees  = fees.filter(f => f.paid).reduce((s, f) => s + Number(f.amount_sgd), 0)
   const budgetPct = totalFees > 0 ? Math.round((paidFees / totalFees) * 100) : 0
@@ -167,8 +189,11 @@ export default async function ParentDashboardPage() {
           </div>
         </div>
 
+        {/* Journey hero — your child's progress toward the dream university */}
+        <JourneyCard journey={journey} dreamUniversity={sp?.target_university} lang="zh" />
+
         {/* Main 2-col grid */}
-        <div className="grid gap-5" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
+        <div className="grid gap-5 grid-cols-1 items-start lg:grid-cols-[1.6fr_1fr]">
 
           {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
           <div className="flex flex-col gap-5">

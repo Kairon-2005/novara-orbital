@@ -373,6 +373,54 @@ export type Database = {
         Update: { saved_at?: string }
         Relationships: []
       }
+      university_targets: {
+        Row: {
+          id: string
+          student_id: string
+          name: string
+          country: string
+          programme: string
+          deadline: string | null
+          requirements: string
+          notes: string
+          status: 'researching' | 'applied' | 'offer' | 'rejected' | 'enrolled'
+          reference_link: string
+          gap_analysis: string
+          gap_score: number | null
+          gap_updated_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          student_id?: string
+          name: string
+          country?: string
+          programme?: string
+          deadline?: string | null
+          requirements?: string
+          notes?: string
+          status?: 'researching' | 'applied' | 'offer' | 'rejected' | 'enrolled'
+          reference_link?: string
+          gap_analysis?: string
+          gap_score?: number | null
+          gap_updated_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          name?: string
+          country?: string
+          programme?: string
+          deadline?: string | null
+          requirements?: string
+          notes?: string
+          status?: 'researching' | 'applied' | 'offer' | 'rejected' | 'enrolled'
+          reference_link?: string
+          gap_analysis?: string
+          gap_score?: number | null
+          gap_updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views:          { [_ in never]: never }
     Functions:      { [_ in never]: never }

@@ -313,7 +313,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
       <div className="p-[28px_36px] flex-1">
 
         {/* Stat cards */}
-        <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div className="grid gap-4 mb-6 grid-cols-2 lg:grid-cols-4">
           <StatCard label="Total Fees (AY 2026)" value={formatSGD(totalFees)} sub="All fee items" />
           <StatCard label="Paid" value={formatSGD(paidFees)} sub={`${fees.filter(f => f.status === 'paid').length} items`} color="#057A55" />
           <StatCard label="Pending" value={formatSGD(pendingFees)} sub={`${fees.filter(f => f.status === 'pending').length} items due`} color="#B45309" />
@@ -339,7 +339,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
 
         {/* ── FEES TAB ── */}
         {activeTab === 'fees' && (
-          <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 280px', alignItems: 'start' }}>
+          <div className="grid gap-5 grid-cols-1 items-start lg:grid-cols-[1fr_280px]">
             <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
               {/* Filter pills */}
               <div className="px-4 py-3 border-b border-[var(--border)] flex items-center gap-2">
@@ -426,7 +426,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
 
         {/* ── EXPENSES TAB ── */}
         {activeTab === 'expenses' && (
-          <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 280px', alignItems: 'start' }}>
+          <div className="grid gap-5 grid-cols-1 items-start lg:grid-cols-[1fr_280px]">
             {/* Expense list */}
             <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
               <div className="px-4 py-3 border-b border-[var(--border)]">

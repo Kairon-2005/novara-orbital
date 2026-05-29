@@ -166,7 +166,7 @@ export default function RoadmapParentClient({ milestones, achievements, document
       </div>
 
       <div className="p-[28px_36px] flex-1">
-        <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 280px', alignItems: 'start' }}>
+        <div className="grid gap-5 grid-cols-1 items-start lg:grid-cols-[1fr_280px]">
 
           {/* ── LEFT: Year blocks ──────────────────────────────────────────── */}
           <div>

@@ -19,7 +19,7 @@ export default async function PortfolioPage() {
     supabase.from('achievements').select('*').eq('student_id', user.id),
     supabase.from('roadmaps').select('id').eq('student_id', user.id).eq('status', 'active').order('generated_at', { ascending: false }).limit(1).single(),
     supabase.from('student_documents').select('id, file_name, file_type, upload_date').eq('student_id', user.id),
-    supabase.from('student_profiles').select('target_programme').eq('id', user.id).single(),
+    supabase.from('student_profiles').select('target_programme').eq('user_id', user.id).single(),
   ])
 
   // Fetch milestones for active roadmap (needs roadmap id first)

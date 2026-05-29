@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createBrowserClient } from '@/db/client'
+import { useToast } from '@/components/ui/toast'
 import type { MockDocument, DocumentFileType } from '@/lib/mock-data'
 
 // ── File type config ──────────────────────────────────────────────────────────
@@ -105,6 +106,7 @@ interface DocumentsClientProps {
 
 export default function DocumentsClient({ initialDocuments, userId }: DocumentsClientProps) {
   const supabase = createBrowserClient()
+  const toast = useToast()
   const [docs, setDocs]         = useState<MockDocument[]>(initialDocuments)
   const [activeTab, setActiveTab] = useState<'all' | DocumentFileType>('all')
   const [dragOver, setDragOver] = useState(false)
@@ -122,26 +124,32 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
   }
 
   const [uploading, setUploading] = useState(false)
+  const [uploadCategory, setUploadCategory] = useState<DocumentFileType>('other')
 
   async function handleUploadFile(file: File) {
     setUploading(true)
     try {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('fileType', 'other')
+      fd.append('fileType', uploadCategory)
       const res = await fetch('/api/documents/upload', { method: 'POST', body: fd })
       const json = await res.json()
       if (json.ok) {
         const newDoc: MockDocument = {
           id: json.id,
           file_name: file.name,
-          file_type: 'other',
+          file_type: uploadCategory,
           upload_date: new Date().toISOString().slice(0, 10),
           size_kb: Math.round(file.size / 1024),
           parent_access: false,
         }
         setDocs(prev => [newDoc, ...prev])
+        toast({ title: 'Document uploaded', description: file.name, variant: 'success' })
+      } else {
+        toast({ title: 'Upload failed', description: json.error ?? 'Please try again.', variant: 'error' })
       }
+    } catch {
+      toast({ title: 'Upload failed', description: 'Network error. Please try again.', variant: 'error' })
     } finally {
       setUploading(false)
     }
@@ -181,7 +189,7 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
       </div>
 
       <div className="p-[28px_36px] flex-1">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '24px', alignItems: 'start' }}>
+        <div className="grid gap-6 grid-cols-1 items-start lg:grid-cols-[1fr_280px]">
 
           {/* LEFT — document list */}
           <div className="flex flex-col gap-4">
@@ -203,6 +211,23 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
                     : `${FILE_TYPE_CONFIG[t].emoji} ${FILE_TYPE_CONFIG[t].label} (${docs.filter(d => d.file_type === t).length})`}
                 </button>
               ))}
+            </div>
+
+            {/* Upload category picker */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="upload-category" className="text-[11px] font-semibold text-[var(--t500)]">Upload as</label>
+              <select
+                id="upload-category"
+                value={uploadCategory}
+                onChange={e => setUploadCategory(e.target.value as DocumentFileType)}
+                className="px-2.5 py-1.5 border border-[var(--border)] rounded-[7px] text-[12px] font-medium text-[var(--t700)] bg-white focus:outline-none focus:border-[var(--blue)]"
+              >
+                {CATEGORY_TABS.filter(t => t !== 'all').map(t => (
+                  <option key={t} value={t}>
+                    {FILE_TYPE_CONFIG[t as DocumentFileType].emoji} {FILE_TYPE_CONFIG[t as DocumentFileType].label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Drop zone */}

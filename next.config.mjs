@@ -7,7 +7,11 @@ const nextConfig = {
   images: {
     domains: ['lh3.googleusercontent.com'], // Google OAuth avatars
   },
-  serverExternalPackages: ['pdf-parse', 'tesseract.js'],
+  // Next.js 14 uses the experimental key; the top-level `serverExternalPackages`
+  // is Next 15+ and is silently ignored here.
+  experimental: {
+    serverComponentsExternalPackages: ['pdf-parse', 'tesseract.js'],
+  },
 }
 
 export default withNextIntl(nextConfig)

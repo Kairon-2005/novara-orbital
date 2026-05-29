@@ -122,7 +122,7 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
       <div className="p-[28px_36px] flex-1">
 
         {/* Stat cards */}
-        <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div className="grid gap-4 mb-5 grid-cols-2 lg:grid-cols-4">
           {[
             { zh: '年度总费用', val: sgd(total),   sub: cny(total),       color: 'var(--t900)' },
             { zh: '已付款',    val: sgd(paid),    sub: `${fees.filter(f=>f.status==='paid').length} 项`,    color: '#057A55' },
@@ -154,7 +154,7 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
           </div>
         </div>
 
-        <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 280px', alignItems: 'start' }}>
+        <div className="grid gap-5 grid-cols-1 items-start lg:grid-cols-[1fr_280px]">
 
           {/* Fee list */}
           <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">

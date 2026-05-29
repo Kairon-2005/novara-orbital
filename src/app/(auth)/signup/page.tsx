@@ -16,6 +16,8 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resendOk, setResendOk] = useState(false)
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
@@ -41,9 +43,30 @@ export default function SignupPage() {
       return
     }
 
-    // Show "check your email" screen — redirect happens via /auth/callback
+    // If Supabase returned a session immediately, email confirmation is disabled.
+    // Skip the "check your email" screen and go straight to the app.
+    if (authData.session) {
+      window.location.href = '/dashboard'
+      return
+    }
+
+    // Confirmation is on — show "check your email" screen.
     setSent(true)
     setLoading(false)
+  }
+
+  async function handleResend() {
+    setResending(true)
+    setError('')
+    setResendOk(false)
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    })
+    setResending(false)
+    if (resendError) setError(resendError.message)
+    else setResendOk(true)
   }
 
   // ── Email sent screen ──────────────────────────────────────────────────────
@@ -68,14 +91,27 @@ export default function SignupPage() {
             Click the link in the email to verify your address and continue to onboarding.
             The link expires in 1 hour.
           </p>
-          <div className="mt-6 pt-6 border-t border-[var(--border)]">
+          <div className="mt-6 pt-6 border-t border-[var(--border)] space-y-3">
+            {resendOk && (
+              <p className="text-[12px] font-medium text-[var(--green)]">✓ Email resent — check your inbox (and spam).</p>
+            )}
+            {error && (
+              <p className="text-[12px] font-medium text-[var(--red)]">{error}</p>
+            )}
+            <button
+              onClick={handleResend}
+              disabled={resending}
+              className="w-full py-2.5 border-[1.5px] border-[var(--blue)] text-[var(--blue)] font-semibold text-[13px] rounded-lg hover:bg-[var(--blue-50)] transition disabled:opacity-60"
+            >
+              {resending ? 'Resending…' : 'Resend confirmation email'}
+            </button>
             <p className="text-[12px] text-[var(--t400)]">
-              Didn&apos;t receive it?{' '}
+              Wrong address?{' '}
               <button
-                onClick={() => { setSent(false); setError('') }}
+                onClick={() => { setSent(false); setError(''); setResendOk(false) }}
                 className="text-[var(--blue)] font-semibold hover:underline"
               >
-                Try again
+                Use a different email
               </button>
             </p>
           </div>

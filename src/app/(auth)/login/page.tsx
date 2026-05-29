@@ -10,24 +10,36 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]           = useState('')
+  const [unconfirmed, setUnconfirmed] = useState(false)
+  const [resent, setResent]           = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setUnconfirmed(false)
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (authError) {
-      setError(authError.message)
+      if (authError.message.toLowerCase().includes('email not confirmed')) {
+        setUnconfirmed(true)
+      } else {
+        setError(authError.message)
+      }
       setLoading(false)
       return
     }
 
     // Hard redirect so the server component re-renders with fresh session cookies.
-    // The layout then handles parent vs student routing server-side.
     window.location.href = '/dashboard'
+  }
+
+  async function handleResend() {
+    setResent(false)
+    await supabase.auth.resend({ type: 'signup', email })
+    setResent(true)
   }
 
   return (
@@ -56,6 +68,19 @@ export default function LoginPage() {
           {error && (
             <div className="bg-[var(--red-50)] text-[var(--red)] text-[13px] px-4 py-3 rounded-lg border border-red-200">
               {error}
+            </div>
+          )}
+          {unconfirmed && (
+            <div className="bg-[#FFFBEB] text-[#B45309] text-[13px] px-4 py-3 rounded-lg border border-yellow-200 space-y-1.5">
+              <div className="font-semibold">Email not confirmed</div>
+              <div className="text-[12px]">Check your inbox for the confirmation link.</div>
+              {resent ? (
+                <div className="text-[12px] text-[var(--green)] font-semibold">✓ Confirmation email resent!</div>
+              ) : (
+                <button type="button" onClick={handleResend} className="text-[12px] font-semibold underline">
+                  Resend confirmation email →
+                </button>
+              )}
             </div>
           )}
 

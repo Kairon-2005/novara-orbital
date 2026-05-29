@@ -269,7 +269,7 @@ export default function PortfolioClient({
       </div>
 
       <div className="p-[28px_36px] flex-1">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px', alignItems: 'start' }}>
+        <div className="grid gap-6 grid-cols-1 items-start lg:grid-cols-[1fr_320px]">
 
           {/* LEFT COLUMN */}
           <div className="flex flex-col gap-5">

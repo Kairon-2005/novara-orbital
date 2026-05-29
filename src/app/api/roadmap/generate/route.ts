@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
 import { checkAndConsumeQuota } from '@/lib/roadmap-quota'
 import { generateRoadmap } from '@/lib/ai'
+import type { ExistingMilestone } from '@/lib/ai'
 import type { StudentProfile } from '@/types/roadmap'
 
 export async function POST() {
@@ -31,7 +32,7 @@ export async function POST() {
   const { data: sp, error: spErr } = await supabase
     .from('student_profiles')
     .select('current_year, current_school, current_curriculum, target_university, target_programme, interests, budget_range, english_level')
-    .eq('id', user.id)
+    .eq('user_id', user.id)
     .single()
 
   if (spErr || !sp) {
@@ -49,9 +50,34 @@ export async function POST() {
     englishLevel:      sp.english_level        ?? '',
   }
 
+  // ── Fetch existing milestones (for context-aware generation) ─
+  const { data: activeRoadmap } = await supabase
+    .from('roadmaps')
+    .select('id')
+    .eq('student_id', user.id)
+    .eq('status', 'active')
+    .order('generated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  let existingMilestones: ExistingMilestone[] = []
+  if (activeRoadmap?.id) {
+    const { data: dbMilestones } = await supabase
+      .from('milestones')
+      .select('type, title, due_date, completed')
+      .eq('roadmap_id', activeRoadmap.id)
+      .order('due_date', { ascending: true })
+    existingMilestones = (dbMilestones ?? []).map(m => ({
+      type:      m.type,
+      title:     m.title,
+      due_date:  m.due_date ?? undefined,
+      completed: m.completed ?? false,
+    }))
+  }
+
   // ── Call Qwen AI ──────────────────────────────────────────────
   try {
-    const roadmap = await generateRoadmap(profile)
+    const roadmap = await generateRoadmap(profile, existingMilestones)
     return NextResponse.json({ roadmap })
   } catch (err) {
     console.error('[roadmap/generate]', err)

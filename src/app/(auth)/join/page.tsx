@@ -48,7 +48,19 @@ function JoinForm() {
       return
     }
 
-    // Show "check your email" screen — linking + redirect handled by /auth/callback
+    // If Supabase returned a session immediately, email confirmation is disabled.
+    // Do the parent linking right now via the server route, then redirect.
+    if (authData.session) {
+      await fetch('/api/auth/complete-parent-join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteCode: code.toUpperCase() }),
+      })
+      window.location.href = '/parent/dashboard'
+      return
+    }
+
+    // Confirmation is on — show "check your email" screen.
     setSent(true)
     setLoading(false)
   }

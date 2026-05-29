@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/db/server'
+import { computeJourney } from '@/lib/progress'
+import { JourneyCard } from '@/components/ui/JourneyCard'
 import InviteCodeButton from './InviteCodeButton'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -129,28 +131,31 @@ function ProgressBar({ pct, color = 'var(--blue)' }: { pct: number; color?: stri
 
 export default async function DashboardPage() {
   const supabase = createServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   // ── fetch all data in parallel ──────────────────────────────────────────
-  const [profileRes, spRes, roadmapRes, quotaRes, readinessRes, eventsRes, feesRes] =
+  const [profileRes, spRes, roadmapRes, quotaRes, readinessRes, eventsRes, feesRes, achievementsRes] =
     await Promise.all([
-      supabase.from('profiles').select('display_name').eq('id', session.user.id).single(),
+      supabase.from('profiles').select('display_name').eq('id', user.id).single(),
       supabase.from('student_profiles')
         .select('current_school, current_year, current_curriculum, target_university, target_programme, onboarding_done, invite_code')
-        .eq('user_id', session.user.id).maybeSingle(),
+        .eq('user_id', user.id).maybeSingle(),
       supabase.from('roadmaps').select('id, raw_json, generated_at')
-        .eq('student_id', session.user.id).eq('status', 'active').order('generated_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('roadmap_generation_quota').select('total_generations').eq('user_id', session.user.id).maybeSingle(),
-      supabase.from('readiness_scores').select('score, gap_analysis').eq('student_id', session.user.id).maybeSingle(),
+        .eq('student_id', user.id).eq('status', 'active').order('generated_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('roadmap_generation_quota').select('total_generations').eq('user_id', user.id).maybeSingle(),
+      supabase.from('readiness_scores').select('score, gap_analysis').eq('student_id', user.id).maybeSingle(),
       supabase.from('calendar_events')
         .select('title, event_date, type')
-        .eq('student_id', session.user.id)
+        .eq('student_id', user.id)
         .gte('event_date', new Date().toISOString().slice(0, 10))
         .order('event_date').limit(5),
       supabase.from('fee_items')
         .select('amount_sgd, paid, due_date')
-        .eq('student_id', session.user.id),
+        .eq('student_id', user.id),
+      supabase.from('achievements')
+        .select('id', { count: 'exact', head: true })
+        .eq('student_id', user.id),
     ])
 
   const displayName = profileRes.data?.display_name ?? 'Student'
@@ -179,6 +184,14 @@ export default async function DashboardPage() {
   const readinessScore = readiness?.score ?? 0
   const totalMilestones = milestones.length
   const doneMilestones  = milestones.filter(m => m.completed).length
+  const achievementsCount = achievementsRes.count ?? 0
+
+  const journey = computeJourney({
+    readinessScore,
+    milestonesDone: doneMilestones,
+    milestonesTotal: totalMilestones,
+    achievements: achievementsCount,
+  })
 
   const nextDeadline = events[0]
   const daysToNext   = nextDeadline ? daysUntil(nextDeadline.event_date) : null
@@ -226,6 +239,9 @@ export default async function DashboardPage() {
       {/* ── Page content ────────────────────────────────────────────────── */}
       <div className="p-[28px_36px] flex-1">
 
+        {/* Journey hero — gamified progress toward the dream university */}
+        <JourneyCard journey={journey} dreamUniversity={sp?.target_university} lang="en" />
+
         {/* Profile completion banner — shown until onboarding_done */}
         {!sp?.onboarding_done && (
           <div className="mb-5 flex items-center gap-4 bg-[var(--amber-50,#FFFBEB)] border border-[#F59E0B]/30 rounded-[10px] px-5 py-3.5">
@@ -243,7 +259,7 @@ export default async function DashboardPage() {
         )}
 
         {/* Stat cards */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             icon={
               <div className="w-9 h-9 bg-[var(--blue-50)] rounded-[9px] flex items-center justify-center">
@@ -293,7 +309,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Main 2-col grid */}
-        <div className="grid gap-5" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
+        <div className="grid gap-5 grid-cols-1 items-start lg:grid-cols-[1.6fr_1fr]">
 
           {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
           <div className="flex flex-col gap-5">

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -23,6 +24,10 @@ export function Sidebar({ items, userName, userMeta, isParent, childName }: Side
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createBrowserClient()
+  const [open, setOpen] = useState(false)
+
+  // Close the mobile drawer whenever the route changes
+  useEffect(() => { setOpen(false) }, [pathname])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -30,7 +35,32 @@ export function Sidebar({ items, userName, userMeta, isParent, childName }: Side
   }
 
   return (
-    <aside className={cn('sidebar', isParent && 'sidebar-parent')}>
+    <>
+      {/* Mobile hamburger toggle (hidden on desktop via CSS) */}
+      <button
+        type="button"
+        className="mobile-menu-btn"
+        aria-label="Open navigation menu"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+
+      {/* Backdrop behind the open drawer (hidden on desktop via CSS) */}
+      {open && (
+        <div
+          className="sidebar-backdrop"
+          aria-hidden="true"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      <aside className={cn('sidebar', isParent && 'sidebar-parent', open && 'sidebar-open')}>
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-[18px] border-b border-[var(--border)]">
         <div className="w-[34px] h-[34px] bg-[var(--blue)] rounded-[9px] flex items-center justify-center text-white font-display font-extrabold text-[17px] flex-shrink-0">
@@ -95,6 +125,7 @@ export function Sidebar({ items, userName, userMeta, isParent, childName }: Side
           </svg>
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   )
 }

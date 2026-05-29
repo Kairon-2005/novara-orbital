@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
+import { useToast } from '@/components/ui/toast'
 import {
   computeXP, getLevelInfo,
   type MockMilestone, type MilestoneType, type MockAchievement, type MockDocument,
@@ -422,6 +423,7 @@ export default function RoadmapClient({
 }: RoadmapClientProps) {
   const supabase = createBrowserClient()
   const router   = useRouter()
+  const toast    = useToast()
   const [milestones, setMilestones] = useState<MockMilestone[]>(initialMilestones)
 
   // ── AI generate state ─────────────────────────────────────────
@@ -466,6 +468,7 @@ export default function RoadmapClient({
       })
       if (res.ok) {
         setShowAiModal(false)
+        toast({ title: '🚀 Roadmap adopted!', description: 'Your milestones are now being tracked.', variant: 'success' })
         // Reload to pull fresh milestones from DB
         router.refresh()
       } else {
@@ -490,7 +493,16 @@ export default function RoadmapClient({
     if (!m) return
     const next = !m.completed
     setMilestones(prev => prev.map(x => x.id === id ? { ...x, completed: next } : x))
-    await supabase.from('milestones').update({ completed: next }).eq('id', id)
+    const { error } = await supabase.from('milestones').update({ completed: next }).eq('id', id)
+    if (error) {
+      // Revert the optimistic update on failure
+      setMilestones(prev => prev.map(x => x.id === id ? { ...x, completed: !next } : x))
+      toast({ title: 'Could not update milestone', description: 'Please try again.', variant: 'error' })
+      return
+    }
+    if (next) {
+      toast({ title: '🎉 Milestone complete!', description: '+50 XP — keep your orbit on track.', variant: 'success' })
+    }
   }
 
   async function handleDelete(id: string) {
@@ -501,7 +513,7 @@ export default function RoadmapClient({
   async function handleAddToCalendar(id: string) {
     const m = milestones.find(x => x.id === id)
     if (!m || !m.due_date) return
-    await supabase.from('calendar_events').insert({
+    const { error } = await supabase.from('calendar_events').insert({
       student_id: userId,
       title:      m.title,
       event_date: m.due_date,
@@ -509,6 +521,9 @@ export default function RoadmapClient({
       source:     'manual' as const,
       notes:      m.description || null,
     })
+    toast(error
+      ? { title: 'Could not add to calendar', description: 'Please try again.', variant: 'error' }
+      : { title: 'Added to calendar', description: m.title, variant: 'success' })
   }
 
   async function handleAdd(m: MockMilestone) {

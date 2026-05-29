@@ -202,14 +202,21 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
           <div className="font-display font-bold text-[17px] text-[var(--t900)]">Calendar</div>
           <div className="text-[11px] text-[var(--t500)] mt-0.5">{MONTHS[viewMonth]} {viewYear} · {monthCount} event{monthCount !== 1 ? 's' : ''} this month</div>
         </div>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)]">
-          + Add Event
-        </button>
+        <div className="flex items-center gap-2">
+          <a href="/api/calendar/export" download
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] font-semibold border-[1.5px] border-[var(--border)] text-[var(--t700)] bg-white hover:bg-[var(--bg)]">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export .ics
+          </a>
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)]">
+            + Add Event
+          </button>
+        </div>
       </div>
 
       <div className="p-[28px_36px] flex-1">
-        <div className="grid gap-6" style={{ gridTemplateColumns: '1fr 300px', alignItems: 'start' }}>
+        <div className="grid gap-6 grid-cols-1 items-start lg:grid-cols-[1fr_300px]">
 
           {/* ── Calendar grid ───────────────────────────────────────────────── */}
           <div>

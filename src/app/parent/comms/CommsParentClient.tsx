@@ -184,7 +184,7 @@ export default function CommsParentClient({ initialComms, studentId }: CommsPare
       </div>
 
       <div className="p-[28px_36px] flex-1">
-        <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 260px', alignItems: 'start' }}>
+        <div className="grid gap-5 grid-cols-1 items-start lg:grid-cols-[1fr_260px]">
 
           {/* ── LEFT: Comm list ─────────────────────────────────────────────── */}
           <div>
