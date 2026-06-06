@@ -62,6 +62,7 @@ export default async function ParentLayout({ children }: { children: React.React
       <Sidebar
         items={navItems}
         userName={profile?.display_name ?? user.email ?? '家长'}
+        userEmail={user.email ?? undefined}
         isParent
         childName={childName}
       />

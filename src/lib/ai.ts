@@ -16,7 +16,7 @@ export const ai = new OpenAI({
 // upstream surfaces as a clean error instead of holding the request open.
 const AI_TIMEOUT_MS = 45_000
 
-function withTimeout<T>(promise: Promise<T>, ms = AI_TIMEOUT_MS): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>, ms = AI_TIMEOUT_MS): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
@@ -27,7 +27,7 @@ function withTimeout<T>(promise: Promise<T>, ms = AI_TIMEOUT_MS): Promise<T> {
 
 // Models occasionally wrap JSON in prose or return malformed output. Throw a
 // labelled error the route layer can turn into a 500 instead of a raw crash.
-function parseJson<T>(content: string | null | undefined, label: string): T {
+export function parseJson<T>(content: string | null | undefined, label: string): T {
   if (!content) throw new Error(`${label}: empty AI response`)
   try {
     return JSON.parse(content) as T
@@ -71,6 +71,9 @@ If existingMilestones is provided in the user message:
 TIMELINE INSTRUCTIONS:
 The user message includes "currentYear" and "enrollmentYear". Produce exactly ONE entry in "years" for EACH calendar year from currentYear through enrollmentYear inclusive, in chronological order, using the real calendar year as the "year" value. The final year (enrollmentYear) is when the student begins university — focus that year on applications, interviews, offers, and enrolment. Do not output years outside this range.
 
+ASSESSMENT INSTRUCTIONS:
+If "assessment" is provided, it is the student's current readiness: an overall level, their biggest gaps, and a per-dimension breakdown (Academic Strength, Programme Fit, Evidence Portfolio, Communication & Storytelling, Initiative & Impact). PRIORITISE milestones that close the weakest dimensions and the listed gaps — each year should make measurable progress on at least one weak dimension. Do not spend milestones reinforcing strengths the student already has.
+
 OUTPUT FORMAT (strict JSON):
 {
   "years": [
@@ -91,10 +94,17 @@ OUTPUT FORMAT (strict JSON):
   ]
 }`
 
+export type RoadmapAssessmentContext = {
+  overallLevel: string
+  topGaps: string[]
+  dimensions: { name: string; level: string; gaps: string[] }[]
+}
+
 export async function generateRoadmap(
   profile: StudentProfile,
   existingMilestones?: ExistingMilestone[],
-  timeline?: { currentYear: number; enrollmentYear: number }
+  timeline?: { currentYear: number; enrollmentYear: number },
+  assessment?: RoadmapAssessmentContext
 ): Promise<GeneratedRoadmap> {
   const now = new Date().getFullYear()
   const currentYear = timeline?.currentYear ?? now
@@ -103,6 +113,7 @@ export async function generateRoadmap(
 
   const payload: Record<string, unknown> = { profile, currentYear, enrollmentYear }
   if (existingMilestones && existingMilestones.length > 0) payload.existingMilestones = existingMilestones
+  if (assessment) payload.assessment = assessment
   const userContent = JSON.stringify(payload)
 
   const response = await withTimeout(ai.chat.completions.create({
@@ -241,30 +252,5 @@ Keep strengths and gaps to 2-4 items each, specific and actionable.`,
   }
 }
 
-// ── Portfolio Gap Analysis ────────────────────────────────────
-
-export async function analysePortfolio(
-  achievements: { category: string; title: string; description: string }[],
-  targetProgramme: string,
-  benchmarkData: Record<string, unknown>
-): Promise<{ score: number; gap_analysis: string }> {
-  const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
-    response_format: { type: 'json_object' },
-    temperature: 0.2,
-    messages: [
-      {
-        role: 'system',
-        content: `You assess a student's portfolio against a target university programme benchmark.
-Output JSON: { "score": <0-100 integer>, "gap_analysis": "<plain English paragraph identifying 2-3 weakest areas with specific actionable recommendations>" }`,
-      },
-      {
-        role: 'user',
-        content: JSON.stringify({ achievements, targetProgramme, benchmark: benchmarkData }),
-      },
-    ],
-  }))
-  return parseJson<{ score: number; gap_analysis: string }>(
-    response.choices[0].message.content, 'analysePortfolio'
-  )
-}
+// Portfolio assessment now lives in the deep `assessment` module — see
+// src/lib/assessor.ts (the AI seam) and src/lib/assessment.ts (scoring core).

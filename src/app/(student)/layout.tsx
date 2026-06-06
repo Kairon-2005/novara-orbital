@@ -39,11 +39,10 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
   if (profile?.role === 'parent') redirect('/parent/dashboard')
 
-  const { data: sp } = await supabase
-    .from('student_profiles')
-    .select('current_school, current_year')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const [{ data: sp }, { data: quota }] = await Promise.all([
+    supabase.from('student_profiles').select('current_school, current_year').eq('user_id', user.id).maybeSingle(),
+    supabase.from('roadmap_generation_quota').select('total_generations').eq('user_id', user.id).maybeSingle(),
+  ])
 
   const navItems = NAV_ITEMS.map(item => ({
     href: item.href,
@@ -56,7 +55,9 @@ export default async function StudentLayout({ children }: { children: React.Reac
       <Sidebar
         items={navItems}
         userName={profile?.display_name ?? user.email ?? 'Student'}
+        userEmail={user.email ?? undefined}
         userMeta={sp?.current_school ?? sp?.current_year ?? undefined}
+        generationsUsed={quota?.total_generations ?? 0}
       />
       <main className="main-content">
         {children}

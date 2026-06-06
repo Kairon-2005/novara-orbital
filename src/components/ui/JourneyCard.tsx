@@ -1,4 +1,4 @@
-import { type Journey, TOTAL_STAGES } from '@/lib/progress'
+import { type Journey, TOTAL_STAGES } from '@/lib/gamification'
 
 // Visual hero for the gamified "journey to your dream university".
 // Pure presentational server component — works in both the student (en)

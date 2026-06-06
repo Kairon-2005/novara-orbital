@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/db/server'
-import { computeJourney } from '@/lib/progress'
+import { computeJourney } from '@/lib/gamification'
 import { JourneyCard } from '@/components/ui/JourneyCard'
 import InviteCodeButton from './InviteCodeButton'
 

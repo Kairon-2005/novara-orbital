@@ -6,6 +6,9 @@
 // to be present — without them every query falls back to `never`.
 // Also: use `type` not `interface`, and spell out Insert/Update explicitly (no self-referential Omit).
 
+import type { PortfolioAssessment } from '@/types/assessment'
+import type { EvidenceClassification } from '@/types/evidence'
+
 export type Role = 'student' | 'parent'
 export type MilestoneType = 'exam' | 'competition' | 'cca' | 'application' | 'academic' | 'other'
 export type AchievementCategory = 'competition' | 'academic' | 'cca' | 'volunteer' | 'award' | 'other'
@@ -33,6 +36,7 @@ export type Database = {
           target_programme: string | null; interests: string | null
           budget_range: string | null; english_level: string | null
           target_enrollment_year: number | null
+          application_route: string | null; target_school: string | null; programme_category: string | null
           invite_code: string | null; onboarding_done: boolean
           created_at: string; updated_at: string
         }
@@ -44,6 +48,7 @@ export type Database = {
           target_programme?: string | null; interests?: string | null
           budget_range?: string | null; english_level?: string | null
           target_enrollment_year?: number | null
+          application_route?: string | null; target_school?: string | null; programme_category?: string | null
           invite_code?: string | null; onboarding_done?: boolean
         }
         Update: {
@@ -53,6 +58,7 @@ export type Database = {
           target_programme?: string | null; interests?: string | null
           budget_range?: string | null; english_level?: string | null
           target_enrollment_year?: number | null
+          application_route?: string | null; target_school?: string | null; programme_category?: string | null
           invite_code?: string | null; onboarding_done?: boolean
           updated_at?: string
         }
@@ -126,6 +132,22 @@ export type Database = {
         Update: { score?: number; gap_analysis?: string }
         Relationships: []
       }
+      portfolio_assessments: {
+        Row: {
+          id: string; student_id: string; overall_level: string
+          overall_summary: string; confidence: string
+          result: PortfolioAssessment; created_at: string
+        }
+        Insert: {
+          id?: string; student_id: string; overall_level: string
+          overall_summary?: string; confidence?: string; result: PortfolioAssessment
+        }
+        Update: {
+          overall_level?: string; overall_summary?: string
+          confidence?: string; result?: PortfolioAssessment
+        }
+        Relationships: []
+      }
       homestay_listings: {
         Row: {
           id: string; family_name: string; description: string | null
@@ -175,15 +197,18 @@ export type Database = {
         Row: {
           id: string; student_id: string; file_name: string
           storage_path: string; file_type: DocumentFileType
+          extracted_text: string | null; classification: EvidenceClassification | null
           upload_date: string; created_at: string
         }
         Insert: {
           id?: string; student_id: string; file_name: string
           storage_path: string; file_type: DocumentFileType
+          extracted_text?: string | null; classification?: EvidenceClassification | null
           upload_date?: string
         }
         Update: {
           file_name?: string; file_type?: DocumentFileType
+          extracted_text?: string | null; classification?: EvidenceClassification | null
         }
         Relationships: []
       }

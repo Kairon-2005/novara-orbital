@@ -3,6 +3,9 @@ docs/
 mockups/
 Orbital.md
 ad-video.html
+.claude/
+FEATURES.md
+Novara PRD v1.0.md
 
 # ── Next.js ───────────────────────────────────────
 .next/

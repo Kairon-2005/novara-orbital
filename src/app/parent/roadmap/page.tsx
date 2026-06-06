@@ -1,7 +1,7 @@
 // Server Component — fetches child's milestones via parent_links.
 import { createServerClient } from '@/db/server'
 import RoadmapParentClient from './RoadmapParentClient'
-import type { MockMilestone, MockAchievement, MockDocument } from '@/lib/mock-data'
+import type { MockMilestone, MockAchievement, MockDocument } from '@/types/models'
 
 export default async function ParentRoadmapPage() {
   const supabase = createServerClient()

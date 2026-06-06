@@ -6,9 +6,13 @@
 import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
 import { checkAndConsumeQuota } from '@/lib/roadmap-quota'
+import { getLatestAssessment } from '@/lib/data'
 import { generateRoadmap } from '@/lib/ai'
-import type { ExistingMilestone } from '@/lib/ai'
+import type { ExistingMilestone, RoadmapAssessmentContext } from '@/lib/ai'
 import type { StudentProfile } from '@/types/roadmap'
+import { ADMISSION_DIMENSIONS } from '@/types/assessment'
+
+const DIM_NAME: Record<string, string> = Object.fromEntries(ADMISSION_DIMENSIONS.map(d => [d.id, d.name]))
 
 export async function POST() {
   const supabase = createRouteClient()
@@ -75,11 +79,25 @@ export async function POST() {
     }))
   }
 
+  // ── Latest assessment → roadmap should target the weak dimensions ─
+  const latest = await getLatestAssessment(supabase, user.id)
+  let assessment: RoadmapAssessmentContext | undefined
+  if (latest) {
+    assessment = {
+      overallLevel: latest.overallLevel,
+      topGaps: latest.topGaps,
+      // Only feed the dimensions worth working on, so the AI spends milestones on gaps.
+      dimensions: latest.dimensionScores
+        .filter(d => d.level === 'missing' || d.level === 'weak' || d.level === 'developing')
+        .map(d => ({ name: DIM_NAME[d.dimensionId] ?? d.dimensionId, level: d.level, gaps: d.gaps })),
+    }
+  }
+
   // ── Call Qwen AI ──────────────────────────────────────────────
   const currentYear = new Date().getFullYear()
   const enrollmentYear = sp.target_enrollment_year ?? currentYear + 4
   try {
-    const roadmap = await generateRoadmap(profile, existingMilestones, { currentYear, enrollmentYear })
+    const roadmap = await generateRoadmap(profile, existingMilestones, { currentYear, enrollmentYear }, assessment)
     return NextResponse.json({ roadmap })
   } catch (err) {
     console.error('[roadmap/generate]', err)

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { createBrowserClient } from '@/db/client'
+import { ProfileMenu } from './ProfileMenu'
 
 interface NavItem {
   href: string
@@ -15,24 +15,19 @@ interface NavItem {
 interface SidebarProps {
   items: NavItem[]
   userName: string
+  userEmail?: string
   userMeta?: string
   isParent?: boolean
   childName?: string
+  generationsUsed?: number
 }
 
-export function Sidebar({ items, userName, userMeta, isParent, childName }: SidebarProps) {
+export function Sidebar({ items, userName, userEmail, isParent, childName, generationsUsed }: SidebarProps) {
   const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createBrowserClient()
   const [open, setOpen] = useState(false)
 
   // Close the mobile drawer whenever the route changes
   useEffect(() => { setOpen(false) }, [pathname])
-
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
 
   return (
     <>
@@ -97,34 +92,13 @@ export function Sidebar({ items, userName, userMeta, isParent, childName }: Side
         ))}
       </nav>
 
-      {/* User row */}
-      <div className="px-3.5 py-3.5 border-t border-[var(--border)] flex items-center gap-2.5">
-        <div className={cn(
-          'w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] flex-shrink-0',
-          isParent ? 'bg-[#FEE2E2] text-[#C81E1E]' : 'bg-[var(--blue-50)] text-[var(--blue)]'
-        )}>
-          {userName.charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className={cn('text-[13px] font-semibold text-[var(--t900)] truncate', isParent && 'font-cn')}>
-            {userName}
-          </div>
-          {userMeta && (
-            <div className="text-[11px] text-[var(--t500)] truncate">{userMeta}</div>
-          )}
-        </div>
-        <button
-          onClick={handleSignOut}
-          title="Sign out"
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-[var(--t300)] hover:text-[var(--red)] hover:bg-[var(--red-50)] transition"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-        </button>
-      </div>
+      {/* Account menu (avatar → settings, language, subscription, log out) */}
+      <ProfileMenu
+        userName={userName}
+        userEmail={userEmail}
+        isParent={isParent}
+        generationsUsed={generationsUsed}
+      />
       </aside>
     </>
   )

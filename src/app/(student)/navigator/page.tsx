@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { MOCK_SCHOOLS, type MockSchool } from '@/lib/mock-data'
+import { MOCK_SCHOOLS } from '@/lib/sample-data'
+import type { MockSchool } from '@/types/models'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,6 @@
 // POST /api/documents/upload
+// Stores the file + metadata and returns immediately. AI classification runs
+// out-of-band (see /api/documents/classify and /api/cron/classify-documents).
 import { createRouteClient } from '@/db/server'
 import type { DocumentFileType } from '@/types/database'
 
