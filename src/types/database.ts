@@ -80,14 +80,17 @@ export type Database = {
         Row: {
           user_id: string; first_generation_used: boolean
           last_free_generation_at: string | null; total_generations: number
+          free_used_this_year: number
         }
         Insert: {
           user_id: string; first_generation_used?: boolean
           last_free_generation_at?: string | null; total_generations?: number
+          free_used_this_year?: number
         }
         Update: {
           first_generation_used?: boolean
           last_free_generation_at?: string | null; total_generations?: number
+          free_used_this_year?: number
         }
         Relationships: []
       }

@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
-import { checkAndConsumeQuota } from '@/lib/roadmap-quota'
+import { checkAndConsumeQuota, FREE_GENERATIONS_PER_YEAR } from '@/lib/roadmap-quota'
 import { getLatestAssessment } from '@/lib/data'
 import { generateRoadmap } from '@/lib/ai'
 import type { ExistingMilestone, RoadmapAssessmentContext } from '@/lib/ai'
@@ -27,7 +27,7 @@ export async function POST() {
   const quota = await checkAndConsumeQuota(supabase, user.id)
   if (quota === 'blocked') {
     return NextResponse.json(
-      { error: 'quota_exceeded', message: 'You have used your free AI generation for this year. Upgrade to generate again.' },
+      { error: 'quota_exceeded', message: `You have used all ${FREE_GENERATIONS_PER_YEAR} free AI generations for this year. Upgrade to generate again.` },
       { status: 402 }
     )
   }
