@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
 
@@ -61,6 +61,36 @@ export default function OnboardingPage() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [hydrating, setHydrating] = useState(true)
+  const [isEditing, setIsEditing] = useState(false)
+
+  // Pre-fill the form with the saved profile so it doubles as a view/edit screen.
+  useEffect(() => {
+    let active = true
+    fetch('/api/profile')
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: { studentProfile?: Record<string, unknown> } | null) => {
+        if (!active || !d?.studentProfile) return
+        const sp = d.studentProfile
+        const str = (v: unknown) => (v == null ? '' : String(v))
+        setForm({
+          current_year:           str(sp.current_year),
+          current_school:         str(sp.current_school),
+          current_curriculum:     str(sp.current_curriculum),
+          target_school:          str(sp.target_school),
+          programme_category:     str(sp.programme_category),
+          application_route:      str(sp.application_route),
+          target_enrollment_year: str(sp.target_enrollment_year),
+          interests:              str(sp.interests),
+          budget_range:           str(sp.budget_range),
+          english_level:          str(sp.english_level),
+        })
+        if (sp.onboarding_done) setIsEditing(true)
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setHydrating(false) })
+    return () => { active = false }
+  }, [])
 
   const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }))
 
@@ -100,6 +130,17 @@ export default function OnboardingPage() {
   const selectClass = inputClass + " appearance-none cursor-pointer"
   const labelClass = "block text-[12px] font-semibold text-[var(--t700)] mb-1.5"
 
+  if (hydrating) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+        <svg className="animate-spin w-6 h-6 text-[var(--blue)]" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center py-12 px-4">
       <div className="w-full max-w-2xl">
@@ -111,10 +152,12 @@ export default function OnboardingPage() {
             <span className="font-display font-extrabold text-[22px] text-[var(--t900)]">Novara</span>
           </div>
           <h1 className="font-display font-bold text-[24px] text-[var(--t900)] mb-2">
-            Tell us about yourself
+            {isEditing ? 'Your profile' : 'Tell us about yourself'}
           </h1>
           <p className="text-[14px] text-[var(--t500)]">
-            We&apos;ll build your personalised Singapore education roadmap based on your answers.
+            {isEditing
+              ? 'Review your details — change any field and save. Your roadmap and assessment use this.'
+              : 'We’ll build your personalised Singapore education roadmap based on your answers.'}
           </p>
         </div>
 
@@ -263,7 +306,7 @@ export default function OnboardingPage() {
                     Saving your profile…
                   </>
                 ) : (
-                  'Generate my roadmap →'
+                  isEditing ? 'Save changes' : 'Generate my roadmap →'
                 )}
               </button>
               <p className="text-center text-[11px] text-[var(--t300)] mt-2">
