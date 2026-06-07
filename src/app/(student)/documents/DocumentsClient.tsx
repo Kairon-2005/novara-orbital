@@ -192,6 +192,9 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
       setDocs(prev => prev.map(d => d.id === id
         ? { ...d, classifying: false, summary: json.classification?.summary, relevance: json.classification?.relevance }
         : d))
+      if (json.classification) {
+        toast({ title: 'Evidence analysed', description: 'Reassess your readiness on the Portfolio page to count it.', variant: 'success' })
+      }
     } catch {
       setDocs(prev => prev.map(d => d.id === id ? { ...d, classifying: false } : d))
     }

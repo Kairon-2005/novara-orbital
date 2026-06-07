@@ -194,10 +194,11 @@ interface PortfolioClientProps {
   userId:              string
   targetProgramme:     string
   initialAssessment:   PortfolioAssessment | null
+  hasNewEvidence:      boolean
 }
 
 export default function PortfolioClient({
-  initialAchievements, milestones, documents, userId, targetProgramme, initialAssessment,
+  initialAchievements, milestones, documents, userId, targetProgramme, initialAssessment, hasNewEvidence,
 }: PortfolioClientProps) {
   const supabase = createBrowserClient()
   const toast = useToast()
@@ -206,6 +207,7 @@ export default function PortfolioClient({
   const [showForm, setShowForm]         = useState(false)
   const [assessment, setAssessment]     = useState<PortfolioAssessment | null>(initialAssessment)
   const [assessing, setAssessing]       = useState(false)
+  const [reassessed, setReassessed]     = useState(false)
 
   const { xp, level: lvl, badges } = summarizeProgress({ achievements, milestones, documents })
   const earnedIds = new Set(badges.map(b => b.id))
@@ -243,6 +245,7 @@ export default function PortfolioClient({
       const json = await res.json() as { assessment?: PortfolioAssessment; error?: string }
       if (res.ok && json.assessment) {
         setAssessment(json.assessment)
+        setReassessed(true)
         toast({ title: 'Assessment updated', description: 'Your readiness has been re-evaluated.', variant: 'success' })
       } else {
         toast({ title: 'Assessment failed', description: json.error ?? 'Please try again.', variant: 'error' })
@@ -275,6 +278,24 @@ export default function PortfolioClient({
       </div>
 
       <div className="p-[28px_36px] flex-1">
+
+        {/* Evidence → reassessment loop: nudge when new evidence has been added */}
+        {hasNewEvidence && !reassessed && assessment && (
+          <div className="mb-5 flex items-center gap-3 bg-[var(--blue-50)] border border-[var(--blue-100)] rounded-[10px] px-4 py-3">
+            <div className="text-[18px]">📄</div>
+            <div className="flex-1 text-[12.5px] text-[var(--t700)]">
+              You&apos;ve added evidence since your last assessment. Reassess to update your readiness across the five dimensions.
+            </div>
+            <button
+              onClick={handleAssess}
+              disabled={assessing}
+              className="flex-shrink-0 inline-flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-[8px] bg-[var(--blue)] text-white hover:bg-[var(--blue-h)] disabled:opacity-50 transition"
+            >
+              {assessing ? 'Reassessing…' : 'Reassess now'}
+            </button>
+          </div>
+        )}
+
         <div className="grid gap-6 grid-cols-1 items-start lg:grid-cols-[1fr_320px]">
 
           {/* LEFT COLUMN */}

@@ -20,7 +20,9 @@ export type AssessmentInput = {
     interests: string
   }
   achievements: { category: string; title: string; description?: string }[]
-  evidenceTypes: string[] // uploaded document types — a proxy for evidence until the vault exists
+  // Classified evidence the student has uploaded — drives the Evidence Portfolio
+  // dimension and reinforces whichever dimensions each item is linked to.
+  evidence: { type: string; summary: string; dimensions: string[]; relevance: string }[]
 }
 
 const DIMENSION_LIST = ADMISSION_DIMENSIONS
@@ -32,7 +34,8 @@ Assess the student's CURRENT readiness against these five dimensions:
 
 ${DIMENSION_LIST}
 
-Score each dimension 0-100 based on the student's profile, achievements and evidence types, judged against typical expectations for the target programme.
+Score each dimension 0-100 based on the student's profile, achievements and uploaded evidence, judged against typical expectations for the target programme.
+Each evidence item has a type, a summary, the dimensions it supports, and a relevance — weight high-relevance evidence strongly toward the dimensions it is linked to, and treat the breadth/quality of evidence as the Evidence Portfolio dimension.
 
 Output strict JSON:
 {

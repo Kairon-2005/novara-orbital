@@ -6,6 +6,6 @@
 export { getStudentProfile } from './students'
 export { getActiveRoadmap, getRoadmapMilestones, getActiveRoadmapMilestones } from './roadmaps'
 export { getAchievements, countAchievements } from './achievements'
-export { getStudentDocuments } from './documents'
-export { getLatestAssessment } from './assessments'
+export { getStudentDocuments, getEvidenceForAssessment, hasEvidenceSince } from './documents'
+export { getLatestAssessment, getLatestAssessmentInfo } from './assessments'
 export type { DB } from './client'

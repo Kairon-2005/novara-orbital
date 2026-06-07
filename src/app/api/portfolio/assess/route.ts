@@ -4,7 +4,7 @@
 
 import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
-import { getStudentProfile, getAchievements, getStudentDocuments } from '@/lib/data'
+import { getStudentProfile, getAchievements, getEvidenceForAssessment } from '@/lib/data'
 import { assessPortfolio } from '@/lib/assessor'
 
 export async function POST() {
@@ -12,10 +12,10 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
-  const [profile, achievements, documents] = await Promise.all([
+  const [profile, achievements, evidence] = await Promise.all([
     getStudentProfile(supabase, user.id),
     getAchievements(supabase, user.id),
-    getStudentDocuments(supabase, user.id),
+    getEvidenceForAssessment(supabase, user.id),
   ])
 
   if (!profile) {
@@ -37,7 +37,7 @@ export async function POST() {
         interests:     profile.interests          ?? '',
       },
       achievements: achievements.map(a => ({ category: a.category, title: a.title, description: a.description })),
-      evidenceTypes: Array.from(new Set(documents.map(d => d.file_type))),
+      evidence,
     })
 
     await supabase.from('portfolio_assessments').insert({

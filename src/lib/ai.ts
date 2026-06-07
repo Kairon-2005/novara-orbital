@@ -6,8 +6,8 @@ import OpenAI from 'openai'
 import type { StudentProfile, GeneratedRoadmap } from '@/types/roadmap'
 
 export const ai = new OpenAI({
-  apiKey: process.env.QWEN_API_KEY ?? 'QWEN_API_KEY',
-  baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+  apiKey: process.env.QWEN_API_KEY ?? '',
+  baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
 })
 
 // ── Helpers ───────────────────────────────────────────────────
