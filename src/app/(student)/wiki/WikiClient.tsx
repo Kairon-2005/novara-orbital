@@ -1,6 +1,40 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+
+// Typora-like reading styles for KB markdown (tables, lists, emphasis).
+const MD_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = {
+  h1: () => null, // doc title is rendered by the page header, skip duplicates
+  h2: ({ children }) => <h3 className="font-display font-semibold text-[14px] text-[var(--t900)] mt-4 mb-1.5">{children}</h3>,
+  h3: ({ children }) => <h4 className="font-semibold text-[13px] text-[var(--t900)] mt-3 mb-1">{children}</h4>,
+  p: ({ children }) => <p className="text-[13px] leading-relaxed text-[var(--t500)] my-2">{children}</p>,
+  ul: ({ children }) => <ul className="list-disc pl-5 my-2 space-y-1">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>,
+  li: ({ children }) => <li className="text-[13px] leading-relaxed text-[var(--t500)]">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold text-[var(--t700)]">{children}</strong>,
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noreferrer" className="text-[var(--blue)] hover:underline break-all">{children}</a>
+  ),
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-3 border border-[var(--border)] rounded-lg">
+      <table className="w-full text-[12.5px] border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-[var(--bg)]">{children}</thead>,
+  th: ({ children }) => <th className="text-left font-semibold text-[var(--t700)] px-3 py-2 border-b border-[var(--border)] whitespace-nowrap">{children}</th>,
+  td: ({ children }) => <td className="text-[var(--t500)] px-3 py-2 border-b border-[var(--border)] last:border-b-0 align-top">{children}</td>,
+  code: ({ children }) => <code className="text-[12px] bg-[var(--bg)] px-1 py-0.5 rounded">{children}</code>,
+  blockquote: ({ children }) => (
+    <blockquote className="border-l-2 border-[var(--blue-100)] pl-3 my-2 text-[var(--t500)]">{children}</blockquote>
+  ),
+  hr: () => <hr className="border-[var(--border)] my-4" />,
+}
+
+function Markdown({ text }: { text: string }) {
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{text}</ReactMarkdown>
+}
 
 // ── Types (mirror the /api/kb responses) ──────────────────────
 
@@ -136,11 +170,11 @@ export default function WikiClient() {
           {active.sections.map((s, i) => (
             <section key={i} className="mb-5">
               {i > 0 && (
-                <h2 className="font-display font-semibold text-[15px] text-[var(--t900)] mb-2">
+                <h2 className="font-display font-semibold text-[15px] text-[var(--t900)] mb-2 pb-1 border-b border-[var(--border)]">
                   {s.section.split(' > ').slice(1).join(' > ') || s.section}
                 </h2>
               )}
-              <div className="text-[13px] leading-relaxed text-[var(--t500)] whitespace-pre-wrap">{s.text}</div>
+              <Markdown text={s.text} />
             </section>
           ))}
 
