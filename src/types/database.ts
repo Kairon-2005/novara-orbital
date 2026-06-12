@@ -8,6 +8,7 @@
 
 import type { PortfolioAssessment } from '@/types/assessment'
 import type { EvidenceClassification } from '@/types/evidence'
+import type { ApplicationPlan } from '@/lib/university-plan'
 
 export type Role = 'student' | 'parent'
 export type MilestoneType = 'exam' | 'competition' | 'cca' | 'application' | 'academic' | 'other'
@@ -480,6 +481,8 @@ export type Database = {
           gap_analysis: string
           gap_score: number | null
           gap_updated_at: string | null
+          application_plan: ApplicationPlan | null
+          plan_updated_at: string | null
           created_at: string
         }
         Insert: {
@@ -496,6 +499,8 @@ export type Database = {
           gap_analysis?: string
           gap_score?: number | null
           gap_updated_at?: string | null
+          application_plan?: ApplicationPlan | null
+          plan_updated_at?: string | null
           created_at?: string
         }
         Update: {
@@ -510,6 +515,8 @@ export type Database = {
           gap_analysis?: string
           gap_score?: number | null
           gap_updated_at?: string | null
+          application_plan?: ApplicationPlan | null
+          plan_updated_at?: string | null
         }
         Relationships: []
       }

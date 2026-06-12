@@ -238,6 +238,78 @@ Be specific and accurate. If unsure about exact figures, give realistic ranges. 
   return response.choices[0].message.content?.trim() ?? ''
 }
 
+// ── Application Plan (assistant v2) ──────────────────────────
+// Structured plan for one target: application window, deadlines, document
+// checklist, sources. NUS/NTU plans are grounded in the knowledge base
+// (official sources, weekly-checked); anything else is model knowledge,
+// marked unverified, and must point the user at the official page.
+
+const PLAN_OUTPUT_SPEC = `Output strict JSON:
+{
+  "applicationWindow": { "opens": "YYYY-MM-DD", "closes": "YYYY-MM-DD" } | null,
+  "deadlines": [ { "date": "YYYY-MM-DD", "title": "<short>", "description": "<optional detail>" } ],
+  "documents": [ { "title": "<required item, e.g. 'High school transcript (certified English translation)'>", "required": true|false } ],
+  "sources": [ { "url": "<official page>", "title": "<page name>" } ],
+  "notes": "<one short caveat or tip, or null>"
+}
+Rules:
+- deadlines must cover: application open/close, document submission, test-score submission, expected outcome/acceptance windows where known.
+- documents: a complete, practical checklist for THIS university and programme (transcripts, English test, standardized tests, passport, essays, fees...).
+- Dates must be for the student's target intake year where determinable; if you adapted dates from an earlier cycle, say so in "notes".
+- Never invent exact dates you don't know — omit the deadline and mention the official page in "notes" instead.`
+
+export async function fetchApplicationPlan(
+  universityName: string,
+  programme: string,
+  enrollmentYear: number
+): Promise<import('@/lib/university-plan').ApplicationPlan> {
+  const { normalizeApplicationPlan } = await import('@/lib/university-plan')
+  const kbUniversity = detectKbUniversity(universityName)
+  const hits = kbUniversity
+    ? await searchKb(
+        `${universityName} ${programme || 'undergraduate'} application deadlines important dates required documents admission requirements`,
+        { university: kbUniversity, limit: 8 }
+      )
+    : []
+
+  const grounded = hits.length > 0
+  const system = grounded
+    ? `You build an application plan for a Chinese international student. Use ONLY the knowledge base context below (curated from official ${kbUniversity} sources) for dates and requirements; do not invent figures that conflict with it.\n\n${kbContextMessage(buildKbContext(hits))}\n\n${PLAN_OUTPUT_SPEC}`
+    : `You build an application plan for a Chinese international student from your general knowledge. Be conservative with exact dates; ALWAYS include the university's official undergraduate-admissions URL in "sources".\n\n${PLAN_OUTPUT_SPEC}`
+
+  const response = await withTimeout(ai.chat.completions.create({
+    model: 'qwen-plus',
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+    messages: [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: `University: ${universityName}\nProgramme: ${programme || 'General undergraduate'}\nTarget intake year: ${enrollmentYear}`,
+      },
+    ],
+  }))
+
+  const plan = normalizeApplicationPlan(
+    parseJson<unknown>(response.choices[0].message.content, 'fetchApplicationPlan')
+  )
+
+  // Grounded plans get verified=true and authoritative sources from the KB
+  // citations (the model's own source list may be partial).
+  if (grounded) {
+    const citationSources = formatCitations(hits).flatMap((c) =>
+      c.sourceUrls.map((url) => ({ url, title: c.title, lastVerified: c.lastVerified }))
+    )
+    const seen = new Set(plan.sources.map((s) => s.url))
+    return {
+      ...plan,
+      verified: true,
+      sources: [...plan.sources, ...citationSources.filter((s) => !seen.has(s.url))].slice(0, 8),
+    }
+  }
+  return { ...plan, verified: false }
+}
+
 // Per-university fit analysis was removed — fit/readiness now lives entirely in
 // the Portfolio assessment (see src/lib/assessor.ts + src/lib/assessment.ts).
 // Portfolio assessment now lives in the deep `assessment` module — see
