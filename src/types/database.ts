@@ -17,6 +17,9 @@ export type DocumentFileType = 'transcript' | 'report_card' | 'certificate' | 'p
 export type DocumentPermission = 'read' | 'edit'
 export type SchoolType = 'primary' | 'secondary' | 'jc' | 'poly' | 'university' | 'language_school' | 'diploma'
 export type SchoolCurriculum = 'IB' | 'A-Level' | 'AP' | 'O-Level' | 'Local' | 'Mixed'
+export type ReportLevel = 'secondary' | 'undergraduate'
+export type ReportRoute = 'IB' | 'A-Level' | 'AP' | 'Gaokao' | 'O-Level' | 'AEIS' | 'DSA' | 'Poly' | 'Other'
+export type ReportResult = 'offer' | 'rejected' | 'waitlist' | 'interview'
 
 export type Database = {
   public: {
@@ -403,6 +406,63 @@ export type Database = {
         Row:    { user_id: string; post_id: string; saved_at: string }
         Insert: { user_id: string; post_id: string; saved_at?: string }
         Update: { saved_at?: string }
+        Relationships: []
+      }
+      admission_reports: {
+        Row: {
+          id: string; author_id: string; anonymous: boolean
+          level: ReportLevel; institution: string; programme: string | null
+          route: ReportRoute; result: ReportResult; apply_year: number
+          scholarship_name: string | null
+          grades: string | null; english_test: string | null
+          standardized_tests: string | null; activities: string | null
+          admission_experience: string
+          interview_experience: string | null; scholarship_experience: string | null
+          proof_path: string | null; verified: boolean
+          visibility: 'public' | 'contributors'
+          upvotes: number
+          moderation_status: 'approved' | 'flagged' | 'removed'; created_at: string
+        }
+        Insert: {
+          id?: string; author_id: string; anonymous?: boolean
+          level: ReportLevel; institution: string; programme?: string | null
+          route: ReportRoute; result: ReportResult; apply_year: number
+          scholarship_name?: string | null
+          grades?: string | null; english_test?: string | null
+          standardized_tests?: string | null; activities?: string | null
+          admission_experience: string
+          interview_experience?: string | null; scholarship_experience?: string | null
+        }
+        Update: {
+          anonymous?: boolean
+          institution?: string; programme?: string | null
+          route?: ReportRoute; result?: ReportResult; apply_year?: number
+          scholarship_name?: string | null
+          grades?: string | null; english_test?: string | null
+          standardized_tests?: string | null; activities?: string | null
+          admission_experience?: string
+          interview_experience?: string | null; scholarship_experience?: string | null
+          moderation_status?: 'approved' | 'flagged' | 'removed'
+        }
+        Relationships: []
+      }
+      report_upvotes: {
+        Row:    { user_id: string; report_id: string; created_at: string }
+        Insert: { user_id: string; report_id: string; created_at?: string }
+        Update: { created_at?: string }
+        Relationships: []
+      }
+      report_comments: {
+        Row: {
+          id: string; report_id: string; author_id: string; anonymous: boolean
+          body: string
+          moderation_status: 'approved' | 'flagged' | 'removed'; created_at: string
+        }
+        Insert: {
+          id?: string; report_id: string; author_id: string; anonymous?: boolean
+          body: string
+        }
+        Update: { body?: string; anonymous?: boolean; moderation_status?: 'approved' | 'flagged' | 'removed' }
         Relationships: []
       }
       university_targets: {

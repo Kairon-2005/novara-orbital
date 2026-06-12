@@ -7,6 +7,10 @@ ad-video.html
 FEATURES.md
 Novara PRD v1.0.md
 
+# ── Database (schema/migrations stay local) ───────
+supabase/
+src/db/*.sql
+
 # ── Next.js ───────────────────────────────────────
 .next/
 out/
