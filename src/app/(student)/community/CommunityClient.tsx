@@ -5,7 +5,7 @@ import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
 import {
   validateReport, displayAuthor, formatBgLine, applyReportFilters,
-  REPORT_ROUTES, REPORT_RESULTS,
+  normalizeParsedDraft, REPORT_ROUTES, REPORT_RESULTS,
 } from '@/lib/community'
 import type { ReportDraft, ReportFilters } from '@/lib/community'
 import type { ReportLevel, ReportRoute, ReportResult } from '@/types/database'
@@ -114,6 +114,7 @@ export default function CommunityClient({ initialReports, userId }: Props) {
   const [draft, setDraft] = useState<ReportDraft>(EMPTY_DRAFT)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [parsing, setParsing] = useState(false)
 
   // Comments state (loaded when a report is opened)
   const [comments, setComments] = useState<CommentView[]>([])
@@ -169,6 +170,24 @@ export default function CommunityClient({ initialReports, userId }: Props) {
         r.id === report.id ? { ...r, upvotedByMe: report.upvotedByMe, upvotes: report.upvotes } : r
       ))
       toast({ title: 'Could not update your upvote', variant: 'error' })
+    }
+  }
+
+  async function parseMaterial(file: File) {
+    setParsing(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/community/parse-material', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      const prefill = normalizeParsedDraft(data.draft)
+      setDraft((d) => ({ ...d, ...prefill }))
+      toast({ title: 'Form pre-filled from your document', description: 'Please review every field before publishing.' })
+    } catch (e) {
+      toast({ title: 'Could not parse the file', description: e instanceof Error ? e.message : undefined, variant: 'error' })
+    } finally {
+      setParsing(false)
     }
   }
 
@@ -235,6 +254,13 @@ export default function CommunityClient({ initialReports, userId }: Props) {
     setDraft(EMPTY_DRAFT)
     setErrors({})
     toast({ title: 'Report published 🎉', description: draft.anonymous ? 'Posted anonymously.' : undefined })
+    // Fire-and-forget: push the anonymized report into the knowledge base so
+    // the AI can cite community outcomes. Failure is non-blocking by design.
+    fetch('/api/community/reports/ingest', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reportId: data.id }),
+    }).catch(() => { /* KB ingest is best-effort */ })
   }
 
   async function submitComment() {
@@ -365,9 +391,33 @@ export default function CommunityClient({ initialReports, userId }: Props) {
       <div className="page-content max-w-[680px]">
         <button onClick={() => setShowForm(false)} className="text-[13px] text-[var(--blue)] font-semibold mb-4 hover:underline">← Cancel</button>
         <h1 className="font-display font-bold text-[20px] text-[var(--t900)]">Share your admission result</h1>
-        <p className="text-[13px] text-[var(--t500)] mt-1 mb-5">
+        <p className="text-[13px] text-[var(--t500)] mt-1 mb-4">
           Structured reports help juniors calibrate. <span className="font-semibold">Posted anonymously by default</span> — your name is never shown unless you opt in.
         </p>
+
+        {/* PDF auto-fill: parsed in memory, never stored; user reviews before publishing */}
+        <label className="card flex items-center justify-between gap-3 p-4 mb-4 cursor-pointer hover:border-[var(--blue)] transition-colors">
+          <div>
+            <div className="text-[13px] font-semibold text-[var(--t900)]">⚡ Auto-fill from a document</div>
+            <div className="text-[12px] text-[var(--t300)] mt-0.5">
+              Upload your offer letter / application summary (PDF or image) — we extract the fields, you review. The file itself is never stored or shown to anyone.
+            </div>
+          </div>
+          <span className="px-3 py-1.5 border border-[var(--border)] rounded-lg text-[12px] font-semibold text-[var(--t500)] whitespace-nowrap">
+            {parsing ? 'Parsing…' : 'Choose file'}
+          </span>
+          <input
+            type="file"
+            accept="application/pdf,image/*,.txt"
+            className="hidden"
+            disabled={parsing}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) parseMaterial(file)
+              e.target.value = ''
+            }}
+          />
+        </label>
 
         <div className="card p-5 mb-4">
           <h2 className="font-display font-semibold text-[14px] text-[var(--t900)] mb-3">1 · Outcome</h2>

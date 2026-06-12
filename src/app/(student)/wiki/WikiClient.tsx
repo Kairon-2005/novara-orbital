@@ -63,12 +63,13 @@ export default function WikiClient() {
 
   useEffect(() => {
     fetch('/api/kb/docs')
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data.error ?? `Request failed (${r.status})`)
         setConfigured(data.configured !== false)
         setDocs(data.docs ?? [])
       })
-      .catch(() => setError('Failed to load the knowledge base.'))
+      .catch((e: Error) => setError(`Failed to load the knowledge base: ${e.message}`))
       .finally(() => setLoading(false))
   }, [])
 

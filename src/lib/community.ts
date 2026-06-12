@@ -65,6 +65,42 @@ export function validateReport(draft: ReportDraft, currentYear: number): Validat
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
+// ── AI-extracted draft normalisation ──────────────────────────
+// The PDF-prefill route asks the model for ReportDraft-shaped JSON; this
+// whitelists and coerces it so junk output can only ever produce a partial
+// prefill, never a crash or an injected field.
+
+const STRING_FIELDS = [
+  'institution', 'programme', 'scholarshipName', 'grades', 'englishTest',
+  'standardizedTests', 'activities', 'admissionExperience',
+  'interviewExperience', 'scholarshipExperience',
+] as const
+
+export function normalizeParsedDraft(raw: unknown): Partial<ReportDraft> {
+  if (typeof raw !== 'object' || raw === null) return {}
+  const source = raw as Record<string, unknown>
+  const draft: Partial<ReportDraft> = {}
+
+  for (const field of STRING_FIELDS) {
+    const value = source[field]
+    if (typeof value === 'string' && value.trim()) draft[field] = value.trim()
+  }
+  if (source.level === 'secondary' || source.level === 'undergraduate') {
+    draft.level = source.level
+  }
+  if (REPORT_ROUTES.includes(source.route as ReportRoute)) {
+    draft.route = source.route as ReportRoute
+  }
+  if (REPORT_RESULTS.includes(source.result as ReportResult)) {
+    draft.result = source.result as ReportResult
+  }
+  const year = Number(source.applyYear)
+  if (Number.isInteger(year) && year >= MIN_APPLY_YEAR && year <= 2100) {
+    draft.applyYear = year
+  }
+  return draft
+}
+
 // ── Anonymity display ─────────────────────────────────────────
 
 export interface AuthorDisplay {
