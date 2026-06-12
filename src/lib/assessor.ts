@@ -2,13 +2,16 @@
 // the model, and funnels the raw output through `normalizeAssessment` so callers
 // always receive a complete, in-range, internally consistent assessment.
 //
-// Knowledge note: today the rubric lives inline in the prompt. The PRD's LLM
-// Wiki / RAG layer will later supply programme-specific rubric + NUS/NTU
-// expectations as retrieved context — that slots in as another message here.
+// Knowledge note: the generic rubric lives inline in the prompt; programme-
+// specific NUS/NTU expectations are retrieved from the knowledge base and
+// slot in as an extra grounding message (see docs/PRD-knowledge-base.md).
 
 import { ai, withTimeout, parseJson } from '@/lib/ai'
 import { normalizeAssessment } from '@/lib/assessment'
 import { ADMISSION_DIMENSIONS, type PortfolioAssessment } from '@/types/assessment'
+import { searchKb } from '@/lib/kb/retrieve'
+import { buildKbContext } from '@/lib/kb/context'
+import { buildAssessmentKbQuery, kbFiltersForTarget, kbContextMessage } from '@/lib/kb/queries'
 
 export type AssessmentInput = {
   target: { university: string; programme: string; route?: string }
@@ -63,12 +66,18 @@ Rules:
 - If evidence is thin, say so and lower confidence rather than inventing achievements.`
 
 export async function assessPortfolio(input: AssessmentInput): Promise<PortfolioAssessment> {
+  // Ground "typical expectations for the target programme" in retrieved
+  // prerequisite / grade-profile facts when the KB has them.
+  const kbHits = await searchKb(buildAssessmentKbQuery(input.target), kbFiltersForTarget(input.target.university))
+  const grounding = kbContextMessage(buildKbContext(kbHits))
+
   const response = await withTimeout(ai.chat.completions.create({
     model: 'qwen-plus',
     response_format: { type: 'json_object' },
     temperature: 0.2,
     messages: [
       { role: 'system', content: ASSESSMENT_PROMPT },
+      ...(grounding ? [{ role: 'system' as const, content: grounding }] : []),
       { role: 'user', content: JSON.stringify(input) },
     ],
   }))

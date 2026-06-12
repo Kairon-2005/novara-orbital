@@ -4,6 +4,10 @@
 
 import OpenAI from 'openai'
 import type { StudentProfile, GeneratedRoadmap } from '@/types/roadmap'
+import { searchKb } from '@/lib/kb/retrieve'
+import { buildKbContext, formatCitations } from '@/lib/kb/context'
+import { detectKbUniversity, buildGroundedRequirementsPrompt } from '@/lib/kb/university'
+import { buildRoadmapKbQuery, kbFiltersForTarget, kbContextMessage } from '@/lib/kb/queries'
 
 export const ai = new OpenAI({
   apiKey: process.env.QWEN_API_KEY ?? '',
@@ -116,12 +120,18 @@ export async function generateRoadmap(
   if (assessment) payload.assessment = assessment
   const userContent = JSON.stringify(payload)
 
+  // Ground milestones (dates, requirements, pathway steps) in the knowledge
+  // base when it has matching content; otherwise generate exactly as before.
+  const kbHits = await searchKb(buildRoadmapKbQuery(profile), kbFiltersForTarget(profile.targetUniversity))
+  const grounding = kbContextMessage(buildKbContext(kbHits))
+
   const response = await withTimeout(ai.chat.completions.create({
     model: 'qwen-plus',
     response_format: { type: 'json_object' },
     temperature: 0.3,
     messages: [
       { role: 'system', content: ROADMAP_SYSTEM_PROMPT },
+      ...(grounding ? [{ role: 'system' as const, content: grounding }] : []),
       { role: 'user', content: userContent },
     ],
   }))
@@ -173,12 +183,41 @@ export async function translateParentMessage(chineseMessage: string): Promise<st
 }
 
 // ── University Requirements Lookup ───────────────────────────
+// For NUS/NTU the answer is grounded in the curated knowledge base (RAG with
+// citations — see docs/PRD-knowledge-base.md); other universities, or any
+// retrieval failure, fall back to the model's own knowledge.
 
 export async function fetchUniversityRequirements(
   universityName: string,
   programme: string,
   country: string
 ): Promise<string> {
+  const kbUniversity = detectKbUniversity(universityName)
+  if (kbUniversity) {
+    const hits = await searchKb(
+      `${universityName} ${programme || 'undergraduate'} admission requirements deadlines english tests`,
+      { university: kbUniversity, limit: 6 }
+    )
+    if (hits.length > 0) {
+      const response = await withTimeout(ai.chat.completions.create({
+        model: 'qwen-plus',
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: buildGroundedRequirementsPrompt(buildKbContext(hits)) },
+          {
+            role: 'user',
+            content: `University: ${universityName}\nProgramme: ${programme || 'General undergraduate'}\nCountry: ${country || 'Singapore'}`,
+          },
+        ],
+      }))
+      const answer = response.choices[0].message.content?.trim() ?? ''
+      const sources = formatCitations(hits)
+        .map((c) => `- ${c.title} (last verified ${c.lastVerified})`)
+        .join('\n')
+      return sources ? `${answer}\n\nSources:\n${sources}` : answer
+    }
+  }
+
   const response = await withTimeout(ai.chat.completions.create({
     model: 'qwen-plus',
     temperature: 0.2,
@@ -199,58 +238,7 @@ Be specific and accurate. If unsure about exact figures, give realistic ranges. 
   return response.choices[0].message.content?.trim() ?? ''
 }
 
-// ── Target-University Fit / Gap Analysis ─────────────────────
-
-export type TargetGap = {
-  score: number
-  summary: string
-  strengths: string[]
-  gaps: string[]
-}
-
-export async function analyseTargetGap(input: {
-  university: string
-  country: string
-  programme: string
-  requirements?: string
-  profile: {
-    currentYear: string
-    currentSchool: string
-    curriculum: string
-    englishLevel: string
-    interests: string
-  }
-  achievements: { category: string; title: string }[]
-}): Promise<TargetGap> {
-  const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
-    response_format: { type: 'json_object' },
-    temperature: 0.2,
-    messages: [
-      {
-        role: 'system',
-        content: `You are an admissions counsellor for Chinese international students in Singapore.
-Compare the student's CURRENT profile and achievements against the TARGET university/programme and assess their fit.
-Use the provided requirements if present; otherwise rely on your knowledge of this university.
-Output strict JSON: {
-  "score": <0-100 integer fit score>,
-  "summary": "<2-3 sentence plain-English assessment>",
-  "strengths": ["<specific existing strength>", ...],
-  "gaps": ["<specific missing item + concrete next action>", ...]
-}
-Keep strengths and gaps to 2-4 items each, specific and actionable.`,
-      },
-      { role: 'user', content: JSON.stringify(input) },
-    ],
-  }))
-  const parsed = parseJson<Partial<TargetGap>>(response.choices[0].message.content, 'analyseTargetGap')
-  return {
-    score: typeof parsed.score === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.score))) : 0,
-    summary: parsed.summary ?? '',
-    strengths: Array.isArray(parsed.strengths) ? parsed.strengths.slice(0, 4) : [],
-    gaps: Array.isArray(parsed.gaps) ? parsed.gaps.slice(0, 4) : [],
-  }
-}
-
+// Per-university fit analysis was removed — fit/readiness now lives entirely in
+// the Portfolio assessment (see src/lib/assessor.ts + src/lib/assessment.ts).
 // Portfolio assessment now lives in the deep `assessment` module — see
 // src/lib/assessor.ts (the AI seam) and src/lib/assessment.ts (scoring core).
