@@ -1,5 +1,7 @@
 # ── AI-assisted files (not for repo) ──────────────
-docs/
+# Root-anchored: only the top-level docs/ folder. A bare "docs/" would also
+# ignore nested dirs like src/app/api/kb/docs/ (which broke the wiki in prod).
+/docs/
 mockups/
 Orbital.md
 ad-video.html
