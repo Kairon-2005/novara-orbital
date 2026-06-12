@@ -5,8 +5,8 @@ import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
 
 // ── Types ─────────────────────────────────────────────────────
-
-export type TargetGap = { summary: string; strengths: string[]; gaps: string[] }
+// Fit/readiness analysis lives in the Portfolio assessment now — this page only
+// manages application logistics (requirements, deadlines, status, links).
 
 export interface UniversityTarget {
   id: string
@@ -18,8 +18,6 @@ export interface UniversityTarget {
   notes: string
   status: 'researching' | 'applied' | 'offer' | 'rejected' | 'enrolled'
   referenceLink: string
-  gapScore: number | null
-  gap: TargetGap | null
 }
 
 interface Props {
@@ -49,13 +47,6 @@ const COUNTRY_EMOJI: Record<string, string> = {
 
 function countryFlag(country: string) {
   return COUNTRY_EMOJI[country] ?? '🌏'
-}
-
-function scoreColor(s: number | null) {
-  if (s == null) return 'var(--t500)'
-  if (s >= 70) return 'var(--green)'
-  if (s >= 40) return 'var(--amber)'
-  return 'var(--red)'
 }
 
 function daysUntil(dateStr: string | null): { text: string; urgent: boolean } {
@@ -111,8 +102,6 @@ function AddForm({ onAdd, onCancel }: { onAdd: (u: UniversityTarget) => void; on
         notes:        notes.trim(),
         status:       'researching',
         referenceLink: refLink.trim(),
-        gapScore:     null,
-        gap:          null,
       })
     }
   }
@@ -174,7 +163,6 @@ function UniversityCard({
 }) {
   const [expanded, setExpanded]   = useState(false)
   const [fetching, setFetching]   = useState(false)
-  const [analysing, setAnalysing] = useState(false)
   const [editNotes, setEditNotes] = useState(false)
   const [notesVal, setNotesVal]   = useState(target.notes)
   const [editLink, setEditLink]   = useState(false)
@@ -215,31 +203,6 @@ function UniversityCard({
   async function handleDelete() {
     await supabase.from('university_targets').delete().eq('id', target.id)
     onDelete(target.id)
-  }
-
-  async function handleAnalyseFit() {
-    setAnalysing(true)
-    setExpanded(true)
-    try {
-      const res = await fetch('/api/universities/gap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetId: target.id }),
-      })
-      const json = await res.json() as { gap?: TargetGap & { score: number }; error?: string }
-      if (res.ok && json.gap) {
-        onUpdate(target.id, {
-          gapScore: json.gap.score,
-          gap: { summary: json.gap.summary, strengths: json.gap.strengths, gaps: json.gap.gaps },
-        })
-      } else {
-        toast({ title: 'Analysis failed', description: json.error ?? 'Please try again.', variant: 'error' })
-      }
-    } catch {
-      toast({ title: 'Analysis failed', description: 'Network error.', variant: 'error' })
-    } finally {
-      setAnalysing(false)
-    }
   }
 
   async function handleSaveLink() {
@@ -389,62 +352,6 @@ function UniversityCard({
             )}
           </div>
 
-          {/* AI fit / gap analysis */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="text-[11px] font-semibold text-[var(--t500)] uppercase tracking-wider">Your fit</div>
-              <button
-                onClick={handleAnalyseFit}
-                disabled={analysing}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-[6px] bg-[var(--blue-50)] text-[var(--blue)] hover:bg-[var(--blue-100)] disabled:opacity-50 transition"
-              >
-                {analysing ? (
-                  <>
-                    <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                    </svg>
-                    Analysing…
-                  </>
-                ) : '✦ Analyse my fit'}
-              </button>
-            </div>
-            {target.gap ? (
-              <div className="bg-[var(--bg)] rounded-[8px] p-3 space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <div className="font-display font-extrabold text-[22px] leading-none" style={{ color: scoreColor(target.gapScore) }}>
-                    {target.gapScore}%
-                  </div>
-                  <div className="text-[12px] text-[var(--t700)] leading-[1.6] flex-1">{target.gap.summary}</div>
-                </div>
-                {target.gap.strengths.length > 0 && (
-                  <div>
-                    <div className="text-[10px] font-bold text-[var(--green)] uppercase tracking-wider mb-1">Strengths</div>
-                    <ul className="space-y-0.5">
-                      {target.gap.strengths.map((s, i) => (
-                        <li key={i} className="text-[12px] text-[var(--t700)] flex gap-1.5"><span className="text-[var(--green)]">✓</span>{s}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {target.gap.gaps.length > 0 && (
-                  <div>
-                    <div className="text-[10px] font-bold text-[var(--amber)] uppercase tracking-wider mb-1">To improve</div>
-                    <ul className="space-y-0.5">
-                      {target.gap.gaps.map((g, i) => (
-                        <li key={i} className="text-[12px] text-[var(--t700)] flex gap-1.5"><span className="text-[var(--amber)]">→</span>{g}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-[12px] text-[var(--t300)] italic py-2">
-                Click &ldquo;Analyse my fit&rdquo; for an AI assessment of your profile vs. this university.
-              </div>
-            )}
-          </div>
-
           {/* Notes */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -523,8 +430,8 @@ export default function UniversityClient({ initialTargets, userId }: Props) {
       {/* Header */}
       <div className="bg-white border-b border-[var(--border)] px-9 h-14 flex items-center justify-between sticky top-0 z-50">
         <div>
-          <div className="font-display font-bold text-[17px] text-[var(--t900)]">Application Assistant</div>
-          <div className="text-[11px] text-[var(--t500)] mt-0.5">{targets.length} universities · AI requirements & fit analysis</div>
+          <div className="font-display font-bold text-[17px] text-[var(--t900)]">Application Tracker</div>
+          <div className="text-[11px] text-[var(--t500)] mt-0.5">{targets.length} universities · requirements, deadlines & status</div>
         </div>
         <button
           onClick={() => setShowForm(v => !v)}

@@ -51,16 +51,21 @@ describe('searchKbWith', () => {
     }])
   })
 
-  it('passes filters and defaults the limit to 6', async () => {
+  it('passes filters and over-fetches 4x the default limit of 6 for reranking', async () => {
     const store = new StubStore()
     await searchKbWith('q', { university: 'NTU', topic: 'fees' }, { store, embed: stubEmbed })
-    expect(store.lastSearch).toEqual({ limit: 6, filter: { university: 'NTU', category: undefined, topic: 'fees' } })
+    expect(store.lastSearch).toEqual({ limit: 24, filter: { university: 'NTU', category: undefined, topic: 'fees' } })
   })
 
-  it('respects an explicit limit', async () => {
-    const store = new StubStore()
-    await searchKbWith('q', { limit: 2 }, { store, embed: stubEmbed })
-    expect(store.lastSearch?.limit).toBe(2)
+  it('over-fetches an explicit limit but returns at most that many hits', async () => {
+    const store = new StubStore([
+      { id: 'p1', score: 0.9, payload: payload({ chunkId: 'a#0' }) },
+      { id: 'p2', score: 0.8, payload: payload({ chunkId: 'b#0' }) },
+      { id: 'p3', score: 0.7, payload: payload({ chunkId: 'c#0' }) },
+    ])
+    const hits = await searchKbWith('q', { limit: 2 }, { store, embed: stubEmbed })
+    expect(store.lastSearch?.limit).toBe(8)
+    expect(hits).toHaveLength(2)
   })
 
   it('returns [] when the store fails (graceful degradation)', async () => {

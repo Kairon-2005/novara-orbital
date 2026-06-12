@@ -1,20 +1,6 @@
 import { createServerClient } from '@/db/server'
 import UniversityClient from './UniversityClient'
-import type { UniversityTarget, TargetGap } from './UniversityClient'
-
-function parseGap(raw: unknown): TargetGap | null {
-  if (typeof raw !== 'string' || !raw) return null
-  try {
-    const o = JSON.parse(raw)
-    return {
-      summary: typeof o.summary === 'string' ? o.summary : '',
-      strengths: Array.isArray(o.strengths) ? o.strengths : [],
-      gaps: Array.isArray(o.gaps) ? o.gaps : [],
-    }
-  } catch {
-    return null
-  }
-}
+import type { UniversityTarget } from './UniversityClient'
 
 export default async function UniversitiesPage() {
   const supabase = createServerClient()
@@ -37,8 +23,6 @@ export default async function UniversitiesPage() {
     notes:        r.notes ?? '',
     status:       r.status as UniversityTarget['status'],
     referenceLink: r.reference_link ?? '',
-    gapScore:     r.gap_score ?? null,
-    gap:          parseGap(r.gap_analysis),
   }))
 
   return <UniversityClient initialTargets={targets} userId={user.id} />
