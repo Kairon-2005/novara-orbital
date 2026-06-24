@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { createBrowserClient } from '@/db/client'
+import { EditEventModal } from './EditEventModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,12 @@ function AddEventModal({ onAdd, onClose }: { onAdd: (e: CalEvent) => void | Prom
   )
 }
 
+// ── Edit Event Modal ──────────────────────────────────────────────────────────────────────
+
+
+// ── Delete Event Modal ──────────────────────────────────────────────────────────────────────
+
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 interface CalendarClientProps {
@@ -137,6 +144,7 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
   const [events, setEvents]       = useState<CalEvent[]>(initialEvents)
   const [showModal, setShowModal] = useState(false)
   const [filterType, setFilter]   = useState('All')
+  const [editingEvent, setEditingEvent] = useState<CalEvent | null>(null)
 
   const today = todayStr()
 
@@ -276,7 +284,8 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
                       const s = EVENT_STYLE[ev.type]
                       return (
                         <div key={ev.id}
-                          className="text-[10px] font-medium px-[5px] py-[2px] rounded-[4px] overflow-hidden text-ellipsis whitespace-nowrap leading-[1.5]"
+                          onClick={e => { e.stopPropagation(); setEditingEvent(ev) }}
+                          className="text-[10px] font-medium px-[5px] py-[2px] rounded-[4px] overflow-hidden text-ellipsis whitespace-nowrap leading-[1.5] cursor-pointer hover:opacity-80"
                           style={{ background: s.bg, color: s.color }}>
                           {ev.title}
                         </div>
@@ -374,6 +383,38 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
         }}
         onClose={() => setShowModal(false)}
       />}
+
+      {editingEvent && (
+        <EditEventModal
+          event={editingEvent}
+          onClose={() => setEditingEvent(null)}
+
+          onDelete={async (id) => {
+            setEvents(p => p.filter(e => e.id !== id))
+
+            await supabase
+              .from('calendar_events')
+              .delete()
+              .eq('id', id)
+          }}
+
+          onSave={async (updated) => {
+            setEvents(p => p.map(e => e.id === updated.id ? updated : e))
+            const TYPE_DB: Record<string, string> = {
+              exam: 'exam', deadline: 'application', cca: 'cca', finance: 'finance', personal: 'personal',
+            }
+            await supabase
+              .from('calendar_events')
+              .update({
+                title: updated.title,
+                event_date: updated.date,
+                type: (TYPE_DB[updated.type] ?? 'personal') as 'exam' | 'cca' | 'application' | 'finance' | 'health' | 'personal' | 'system',
+                notes: updated.notes ?? null,
+              })
+              .eq('id', updated.id)
+          }}
+      />
+      )} 
     </div>
   )
 }
