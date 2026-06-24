@@ -1,7 +1,7 @@
 // Server Component — fetches student_documents from Supabase Storage metadata.
 import { createServerClient } from '@/db/server'
 import DocumentsClient from './DocumentsClient'
-import type { MockDocument } from '@/lib/mock-data'
+import type { MockDocument } from '@/types/models'
 
 export default async function DocumentsPage() {
   const supabase = createServerClient()
@@ -10,7 +10,7 @@ export default async function DocumentsPage() {
 
   const { data: dbDocs } = await supabase
     .from('student_documents')
-    .select('id, file_name, file_type, upload_date, storage_path')
+    .select('id, file_name, file_type, upload_date, storage_path, classification')
     .eq('student_id', user.id)
     .order('upload_date', { ascending: false })
 
@@ -21,6 +21,8 @@ export default async function DocumentsPage() {
     upload_date:   d.upload_date.slice(0, 10),
     size_kb:       0,  // not stored — would need Storage metadata API call
     parent_access: false,
+    summary:       d.classification?.summary,
+    relevance:     d.classification?.relevance,
   }))
 
   return <DocumentsClient initialDocuments={documents} userId={user.id} />

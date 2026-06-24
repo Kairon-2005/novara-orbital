@@ -1,8 +1,28 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/db/server'
-import { computeJourney } from '@/lib/progress'
+import { computeJourney } from '@/lib/gamification'
+import { getLatestAssessment } from '@/lib/data'
 import { JourneyCard } from '@/components/ui/JourneyCard'
+
+// Simplified-Chinese labels for the dimension-based assessment
+const DIM_NAME_ZH: Record<string, string> = {
+  academic_strength: '学术实力',
+  programme_fit: '专业匹配度',
+  evidence_portfolio: '材料与证据',
+  communication_storytelling: '表达与叙事',
+  initiative_impact: '主动性与影响力',
+}
+const READINESS_ZH: Record<string, string> = {
+  early_stage: '起步阶段', developing: '发展中', on_track: '步入正轨',
+  competitive: '有竞争力', strong: '实力强劲',
+}
+const DIM_LEVEL_ZH: Record<string, string> = {
+  missing: '缺失', weak: '薄弱', developing: '发展中', competitive: '有竞争力', strong: '强',
+}
+const DIM_LEVEL_COLOR: Record<string, string> = {
+  missing: '#9CA3AF', weak: '#E02424', developing: '#D97706', competitive: '#1A56DB', strong: '#057A55',
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,8 +147,14 @@ export default async function ParentDashboardPage() {
     milestonesTotal = ms?.length ?? 0
     milestonesDone  = ms?.filter(m => m.completed).length ?? 0
   }
+  // Latest dimension-based assessment (parents can read via RLS)
+  const childAssessment = await getLatestAssessment(supabase, childId)
+  const assessmentAvg = childAssessment && childAssessment.dimensionScores.length
+    ? Math.round(childAssessment.dimensionScores.reduce((s, d) => s + d.score, 0) / childAssessment.dimensionScores.length)
+    : 0
+
   const journey = computeJourney({
-    readinessScore,
+    readinessScore: assessmentAvg || readinessScore,
     milestonesDone,
     milestonesTotal,
     achievements: achievements.length,
@@ -207,7 +233,31 @@ export default async function ParentDashboardPage() {
                 </span>
               </div>
               <div className="p-[16px_18px]">
-                {readiness ? (
+                {childAssessment ? (
+                  <>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-[12px] text-[var(--t500)]">综合准备度</span>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-bold text-white bg-[var(--blue)]">
+                        {READINESS_ZH[childAssessment.overallLevel] ?? childAssessment.overallLevel}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      {childAssessment.dimensionScores.map(d => (
+                        <div key={d.dimensionId} className="flex items-center justify-between">
+                          <span className="text-[12px] text-[var(--t500)]">{DIM_NAME_ZH[d.dimensionId] ?? d.dimensionId}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-[120px] bg-[#F3F4F6] rounded-full h-[6px]">
+                              <div className="h-full rounded-full" style={{ width: `${d.score}%`, background: DIM_LEVEL_COLOR[d.level] }} />
+                            </div>
+                            <span className="text-[11px] font-semibold w-[42px] text-right" style={{ color: DIM_LEVEL_COLOR[d.level] }}>
+                              {DIM_LEVEL_ZH[d.level] ?? d.level}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : readiness ? (
                   <>
                     <div className="flex items-center gap-5 mb-4">
                       <div className="text-center">

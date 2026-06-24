@@ -1,6 +1,6 @@
 import { createServerClient } from '@/db/server'
 import CommsParentClient from './CommsParentClient'
-import type { MockComm } from '@/lib/mock-data'
+import type { MockComm } from '@/types/models'
 
 export default async function ParentCommsPage() {
   const supabase = createServerClient()

@@ -132,7 +132,10 @@ explicitly **adopts** it before anything is persisted.
 
 ### Supporting features
 School & Curriculum Navigator, Finance Tracker (fees, insurance, expenses), Homestay
-listings, and a community hub (small-红书 / Xiaohongshu-style — planned for MS3).
+listings, a **Knowledge Wiki** (the curated NUS/NTU/pathway corpus the AI retrieves
+from — browsable and semantically searchable at `/wiki`), and a **community of
+structured admission reports** (一亩三分地-style data points: background + outcome +
+experience, anonymous by default; secondary school & undergraduate only).
 
 ---
 
@@ -332,6 +335,7 @@ then the reasoning that matters most appears in [§10 Design Decisions](#10-desi
 | Charts | **Recharts** | Declarative React charts for readiness/finance visualisations |
 | Icons | **lucide-react** + inline SVG | Lightweight, tree-shakeable icons |
 | Doc parsing | **pdf-parse**, **tesseract.js** | Extract text/OCR from uploaded notices for translation |
+| RAG / vector store | **Qdrant Cloud** + DashScope `text-embedding-v3` | Grounds AI answers in a curated, citable knowledge base; reuses the Qwen key for embeddings |
 | Testing | **Vitest** | Fast, ESM-native unit testing aligned with the Vite ecosystem |
 | Deployment | **Vercel** + Supabase Cloud | Zero-config Next.js hosting; managed Postgres |
 
@@ -683,14 +687,19 @@ tables (≈30 total) and their roles:
 | `school_communications` / `parent_drafts` | Translated notices; parent→school drafts |
 | `fee_items` / `insurance_policies` / `expense_logs` | Finance tracking |
 | `homestay_listings` / `homestay_reviews` / `homestay_saves` | Homestay feature |
-| `community_posts` / `post_saves` | Community hub (planned) |
+| `admission_reports` | Community v2: structured admission reports — outcome, background, experience sections; anonymous by default; reserved `proof_path`/`verified`/`visibility` for proof-of-offer + contribute-to-read |
+| `report_upvotes` / `report_comments` | Upvote toggle (trigger-maintained counter) and anonymous-by-default comment threads |
+| `community_posts` / `post_saves` | **Deprecated** (old general forum; no UI) |
 
 **Key relationships:** `profiles 1—1 student_profiles`; `student_profiles 1—N
 roadmaps 1—N milestones`; `profiles N—N profiles` via `parent_links`;
 `student_profiles 1—N university_targets / achievements / calendar_events`.
 
 **Triggers:** `handle_new_user()` auto-creates `profiles` + `student_profiles` on
-sign-up. **Important convention:** `student_profiles` is keyed by **`user_id`** (its
+sign-up; `bump_report_upvotes()` keeps `admission_reports.upvotes` in sync.
+**Outside Postgres:** the RAG knowledge base lives in **Qdrant Cloud** (collection
+`novara_kb`), ingested from versioned markdown in `content/kb/` — see
+`docs/PRD-knowledge-base.md`. **Important convention:** `student_profiles` is keyed by **`user_id`** (its
 `id` is a separate surrogate key) — always filter by `user_id`.
 
 ---
@@ -714,6 +723,12 @@ All handlers verify authentication first and return JSON. Bold = mutating.
 | `/api/documents/signed-url` | GET | User/Parent | Time-limited signed URL (ownership-checked) |
 | `/api/calendar/export` | GET | User | Stream an RFC 5545 `.ics` of the student's events |
 | `/api/translate-notice` | **POST** | User | EN→ZH translation + summary; persists the record |
+| `/api/kb/search` | **POST** | User | Semantic search over the knowledge base (filters: university/category/topic) with citations |
+| `/api/kb/docs` | GET | User | List knowledge-base documents (wiki index) |
+| `/api/kb/docs/[docId]` | GET | User | One document rebuilt from its ingested chunks (wiki reader) |
+| `/api/kb/ingest` | **POST** | `KB_ADMIN_SECRET` | Runtime ingest/re-ingest of one markdown KB doc (scoped, orphan-cleaning) |
+| `/api/cron/kb-stale` | GET | `CRON_SECRET` | Weekly sweep flagging KB docs not re-verified in 90 days |
+| `/api/cron/classify-documents` | GET | `CRON_SECRET` | Daily sweep classifying unprocessed documents |
 
 ---
 
@@ -792,9 +807,12 @@ The standard is **"make the code read like prose; comment the *why*, not the *wh
 
 ## 17. Testing & Quality Assurance
 
-- **Unit testing:** Vitest (`npm run test`), with `@vitejs/plugin-react` for component
-  tests. Pure logic in `lib/` (quota, progress/XP, invite-code, `.ics` date math) is
-  the highest-value target for unit tests.
+- **Unit testing:** Vitest (`npm run test`) — **96 unit tests** over the pure logic:
+  gamification/assessment/evidence/runes, the knowledge-base pipeline (chunking,
+  ingest planning, retrieval, citations, staleness, refresh diffing) and the
+  community domain (report validation, anonymity display, BG lines, filters).
+  Integration-style: tests exercise public interfaces only, with fake stores for
+  the vector DB — no network in the suite.
 - **Static analysis as the primary gate at MS1:** `tsc --noEmit` + `next build`
   (which runs ESLint and type-checks every route) must pass before merge — this
   catches the bulk of regressions cheaply.
@@ -808,6 +826,8 @@ The standard is **"make the code read like prose; comment the *why*, not the *wh
 ### Prerequisites
 - Node.js 18+ and npm
 - A Supabase project (free tier) and a Qwen (DashScope) API key
+- A Qdrant Cloud cluster (free tier) for the RAG knowledge base — optional in dev;
+  AI features degrade gracefully without it
 
 ### Setup
 ```bash
@@ -831,12 +851,18 @@ idempotent and safe to re-run.
 | `npm run start` | Serve the production build |
 | `npm run lint` | Run ESLint |
 | `npm run test` | Run Vitest unit tests |
+| `npm run kb:ingest` | Chunk + embed `content/kb/*.md` into Qdrant (idempotent) |
+| `npm run kb:stale` | List KB docs whose `last_verified` is >90 days old |
+| `npm run kb:refresh` | Fetch all KB `source_urls`, diff against the last snapshot (`-- --update` to accept) |
 
 ### Required environment variables
 See `.env.example`. Core keys:
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — client/server Supabase
 - `SUPABASE_SERVICE_ROLE_KEY` — server-only privileged writes
-- `QWEN_API_KEY` — the AI provider key (**required**; without it, AI calls fail auth)
+- `QWEN_API_KEY` — the AI provider key (**required**; also used for KB embeddings)
+- `QDRANT_URL`, `QDRANT_API_KEY` — Qdrant Cloud (RAG features no-op if unset)
+- `KB_ADMIN_SECRET` — bearer secret for `/api/kb/ingest` (falls back to `CRON_SECRET`)
+- `CRON_SECRET` — protects cron routes
 - `NEXT_PUBLIC_APP_URL` — app origin
 
 ---
@@ -866,8 +892,13 @@ See `.env.example`. Core keys:
 
 ## 21. Known Limitations & Future Work
 
-- **Community hub** is currently mock data; the backend (CRUD + AI moderation) is
-  planned for M3.
+- **Community admission reports** are live (anonymous-by-default, RLS-backed);
+  proof-of-offer upload + verified badges and 一亩三分地-style contribute-to-read
+  gating are schema-reserved but not yet enabled. Aggregate stats (offer profiles
+  per institution/route) are future work.
+- **Knowledge base** quarterly refresh is human-in-the-loop by design (`kb:refresh`
+  diffs official pages; an editor updates the markdown and re-ingests); an automated
+  re-crawl draft pipeline is future work (KB-10 backlog).
 - **School Navigator** uses a curated static dataset; a managed schools table is a
   future enhancement.
 - **In-app reminders** (using the `reminder_sent_*` flags) are scaffolded but not yet
@@ -887,7 +918,11 @@ See `.env.example`. Core keys:
 | `NEXT_PUBLIC_SUPABASE_URL` | public | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | public | Supabase anon key (RLS-guarded) |
 | `SUPABASE_SERVICE_ROLE_KEY` | server | Privileged server-only writes |
-| `QWEN_API_KEY` | server | Qwen/DashScope API key |
+| `QWEN_API_KEY` | server | Qwen/DashScope API key (chat + KB embeddings) |
+| `QDRANT_URL` | server | Qdrant Cloud cluster URL (RAG knowledge base) |
+| `QDRANT_API_KEY` | server | Qdrant Cloud API key |
+| `KB_ADMIN_SECRET` | server | Bearer secret for runtime KB ingest (falls back to `CRON_SECRET`) |
+| `CRON_SECRET` | server | Protects `/api/cron/*` routes |
 | `NEXT_PUBLIC_APP_URL` | public | App origin for redirects |
 
 ### 22.2 Glossary

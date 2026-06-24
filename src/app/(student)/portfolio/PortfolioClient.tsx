@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { createBrowserClient } from '@/db/client'
-import {
-  computeXP, getLevelInfo, computeBadges, ALL_BADGES, XP_BY_CATEGORY,
-  type MockAchievement, type MockMilestone, type MockDocument, type AchievementCategory,
-} from '@/lib/mock-data'
+import { useToast } from '@/components/ui/toast'
+import { summarizeProgress, ALL_BADGES, XP_BY_CATEGORY } from '@/lib/gamification'
+import type { MockAchievement, MockMilestone, MockDocument, AchievementCategory } from '@/types/models'
+import { ADMISSION_DIMENSIONS, type PortfolioAssessment, type DimensionLevel, type ReadinessLevel } from '@/types/assessment'
 
 // ── Category config ───────────────────────────────────────────────────────────
 
@@ -18,13 +18,22 @@ const CAT_CONFIG: Record<AchievementCategory, { label: string; emoji: string; bg
   other:       { label: 'Other',       emoji: '📌', bg: '#F3F4F6', color: '#374151' },
 }
 
-const READINESS_BARS = [
-  { label: 'Academic Results',    pct: 82, fill: '#1A56DB' },
-  { label: 'English Proficiency', pct: 61, fill: '#D97706' },
-  { label: 'CCA & Leadership',    pct: 75, fill: '#057A55' },
-  { label: 'Interview Readiness', pct: 58, fill: '#D97706' },
-  { label: 'Financial Planning',  pct: 88, fill: '#057A55' },
-]
+// ── Assessment display config ─────────────────────────────────────────────────
+
+const LEVEL_META: Record<DimensionLevel, { label: string; color: string }> = {
+  missing:     { label: 'Missing',     color: '#9CA3AF' },
+  weak:        { label: 'Weak',        color: '#E02424' },
+  developing:  { label: 'Developing',  color: '#D97706' },
+  competitive: { label: 'Competitive', color: '#1A56DB' },
+  strong:      { label: 'Strong',      color: '#057A55' },
+}
+
+const READINESS_LABEL: Record<ReadinessLevel, string> = {
+  early_stage: 'Early stage', developing: 'Developing', on_track: 'On track',
+  competitive: 'Competitive', strong: 'Strong',
+}
+
+const DIM_NAME: Record<string, string> = Object.fromEntries(ADMISSION_DIMENSIONS.map(d => [d.id, d.name]))
 
 // ── XP Ring chart ─────────────────────────────────────────────────────────────
 
@@ -184,21 +193,23 @@ interface PortfolioClientProps {
   documents:           MockDocument[]
   userId:              string
   targetProgramme:     string
+  initialAssessment:   PortfolioAssessment | null
+  hasNewEvidence:      boolean
 }
 
 export default function PortfolioClient({
-  initialAchievements, milestones, documents, userId, targetProgramme,
+  initialAchievements, milestones, documents, userId, targetProgramme, initialAssessment, hasNewEvidence,
 }: PortfolioClientProps) {
   const supabase = createBrowserClient()
+  const toast = useToast()
   const [achievements, setAchievements] = useState<MockAchievement[]>(initialAchievements)
   const [activeTab, setActiveTab]       = useState<'all' | AchievementCategory>('all')
   const [showForm, setShowForm]         = useState(false)
-  const [aiAnalysis, setAiAnalysis]     = useState<{ score: number; gap_analysis: string } | null>(null)
-  const [aiLoading, setAiLoading]       = useState(false)
+  const [assessment, setAssessment]     = useState<PortfolioAssessment | null>(initialAssessment)
+  const [assessing, setAssessing]       = useState(false)
+  const [reassessed, setReassessed]     = useState(false)
 
-  const xp     = computeXP(achievements, milestones, documents)
-  const lvl    = getLevelInfo(xp)
-  const badges = computeBadges(achievements, milestones, documents)
+  const { xp, level: lvl, badges } = summarizeProgress({ achievements, milestones, documents })
   const earnedIds = new Set(badges.map(b => b.id))
 
   const displayed = activeTab === 'all'
@@ -227,23 +238,22 @@ export default function PortfolioClient({
     setShowForm(false)
   }
 
-  async function handleAnalyse() {
-    setAiLoading(true)
+  async function handleAssess() {
+    setAssessing(true)
     try {
-      const res = await fetch('/api/portfolio/analyse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          achievements: achievements.map(a => ({ category: a.category, title: a.title, description: a.description })),
-          targetProgramme,
-        }),
-      })
-      if (res.ok) {
-        const json = await res.json() as { score: number; gap_analysis: string }
-        setAiAnalysis(json)
+      const res = await fetch('/api/portfolio/assess', { method: 'POST' })
+      const json = await res.json() as { assessment?: PortfolioAssessment; error?: string }
+      if (res.ok && json.assessment) {
+        setAssessment(json.assessment)
+        setReassessed(true)
+        toast({ title: 'Assessment updated', description: 'Your readiness has been re-evaluated.', variant: 'success' })
+      } else {
+        toast({ title: 'Assessment failed', description: json.error ?? 'Please try again.', variant: 'error' })
       }
+    } catch {
+      toast({ title: 'Assessment failed', description: 'Network error.', variant: 'error' })
     } finally {
-      setAiLoading(false)
+      setAssessing(false)
     }
   }
 
@@ -268,6 +278,24 @@ export default function PortfolioClient({
       </div>
 
       <div className="p-[28px_36px] flex-1">
+
+        {/* Evidence → reassessment loop: nudge when new evidence has been added */}
+        {hasNewEvidence && !reassessed && assessment && (
+          <div className="mb-5 flex items-center gap-3 bg-[var(--blue-50)] border border-[var(--blue-100)] rounded-[10px] px-4 py-3">
+            <div className="text-[18px]">📄</div>
+            <div className="flex-1 text-[12.5px] text-[var(--t700)]">
+              You&apos;ve added evidence since your last assessment. Reassess to update your readiness across the five dimensions.
+            </div>
+            <button
+              onClick={handleAssess}
+              disabled={assessing}
+              className="flex-shrink-0 inline-flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-[8px] bg-[var(--blue)] text-white hover:bg-[var(--blue-h)] disabled:opacity-50 transition"
+            >
+              {assessing ? 'Reassessing…' : 'Reassess now'}
+            </button>
+          </div>
+        )}
+
         <div className="grid gap-6 grid-cols-1 items-start lg:grid-cols-[1fr_320px]">
 
           {/* LEFT COLUMN */}
@@ -278,24 +306,60 @@ export default function PortfolioClient({
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 font-display font-bold text-[13px] text-[var(--t900)]">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                  Admission Readiness Score
+                  Admission Readiness
                 </div>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--blue-50)] text-[var(--blue)]">Updated today</span>
+                <button
+                  onClick={handleAssess}
+                  disabled={assessing}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-[6px] bg-[var(--blue-50)] text-[var(--blue)] hover:bg-[var(--blue-100)] disabled:opacity-50 transition"
+                >
+                  {assessing ? (
+                    <>
+                      <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                      </svg>
+                      Assessing…
+                    </>
+                  ) : assessment ? '↺ Reassess' : '✦ Run assessment'}
+                </button>
               </div>
 
               <XPRing {...lvl} xp={xp} />
 
-              <div className="flex flex-col gap-3">
-                {READINESS_BARS.map(row => (
-                  <div key={row.label} className="flex items-center gap-3">
-                    <div className="text-[12px] font-medium text-[var(--t700)] flex-shrink-0" style={{ width: 130 }}>{row.label}</div>
-                    <div className="flex-1 h-[8px] bg-[var(--bg)] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.fill }} />
-                    </div>
-                    <div className="text-[12px] font-bold text-[var(--t700)] w-8 text-right flex-shrink-0">{row.pct}%</div>
+              {assessment ? (
+                <>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[11px] text-[var(--t500)]">Overall readiness</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white"
+                      style={{ background: 'var(--blue)' }}>
+                      {READINESS_LABEL[assessment.overallLevel]}
+                    </span>
                   </div>
-                ))}
-              </div>
+                  <div className="flex flex-col gap-3">
+                    {assessment.dimensionScores.map(d => {
+                      const meta = LEVEL_META[d.level]
+                      return (
+                        <div key={d.dimensionId} className="flex items-center gap-3" title={d.reasoning}>
+                          <div className="text-[12px] font-medium text-[var(--t700)] flex-shrink-0" style={{ width: 150 }}>{DIM_NAME[d.dimensionId]}</div>
+                          <div className="flex-1 h-[8px] bg-[var(--bg)] rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${d.score}%`, background: meta.color }} />
+                          </div>
+                          <div className="text-[11px] font-bold w-[78px] text-right flex-shrink-0" style={{ color: meta.color }}>{meta.label}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {assessment.overallSummary && (
+                    <p className="text-[12px] text-[var(--t500)] leading-relaxed mt-3 pt-3 border-t border-[var(--border)]">{assessment.overallSummary}</p>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-6">
+                  <div className="text-[13px] text-[var(--t500)] mb-1">No assessment yet</div>
+                  <div className="text-[12px] text-[var(--t300)]">Run an AI assessment to score your readiness across the five admission dimensions.</div>
+                </div>
+              )}
             </div>
 
             {/* Achievements card */}
@@ -373,66 +437,51 @@ export default function PortfolioClient({
               </div>
             </div>
 
-            {/* AI Portfolio Analysis */}
+            {/* Strengths & priorities (from the latest assessment) */}
             <div className="bg-white border border-[var(--border)] rounded-[12px] p-[20px_22px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-display font-bold text-[13px] text-[var(--t900)] flex items-center gap-2">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--blue)" strokeWidth="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                  AI Gap Analysis
-                </div>
-                <button
-                  onClick={handleAnalyse}
-                  disabled={aiLoading}
-                  className="text-[11px] font-semibold px-3 py-1 rounded-[6px] bg-[var(--blue)] text-white hover:bg-[var(--blue-h)] transition disabled:opacity-50 flex items-center gap-1"
-                >
-                  {aiLoading ? (
-                    <>
-                      <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                      </svg>
-                      Analysing…
-                    </>
-                  ) : aiAnalysis ? '↺ Re-analyse' : '✦ Analyse'}
-                </button>
+              <div className="font-display font-bold text-[13px] text-[var(--t900)] flex items-center gap-2 mb-3">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--blue)" strokeWidth="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                Strengths &amp; Priorities
               </div>
 
-              {!aiAnalysis && !aiLoading && (
-                <p className="text-[12px] text-[var(--t500)] leading-relaxed">
-                  Click Analyse to get a personalised gap analysis for{' '}
-                  <span className="font-semibold text-[var(--t700)]">{targetProgramme || 'your target programme'}</span>{' '}
-                  powered by Qwen AI.
-                </p>
-              )}
-
-              {aiAnalysis && (
+              {assessment ? (
                 <div className="flex flex-col gap-3">
-                  {/* Score */}
-                  <div className="flex items-center gap-3 p-3 bg-[var(--bg)] rounded-[8px]">
-                    <div className="flex-shrink-0 text-center">
-                      <div className="font-display font-extrabold text-[28px] leading-none"
-                        style={{ color: aiAnalysis.score >= 70 ? 'var(--green)' : aiAnalysis.score >= 50 ? '#D97706' : 'var(--red)' }}>
-                        {aiAnalysis.score}
-                      </div>
-                      <div className="text-[9px] font-semibold text-[var(--t300)] mt-0.5">/ 100</div>
-                    </div>
+                  {assessment.topStrengths.length > 0 && (
                     <div>
-                      <div className="text-[12px] font-semibold text-[var(--t900)]">Portfolio Score</div>
-                      <div className="h-[6px] w-[140px] bg-[#E5E7EB] rounded-full mt-1 overflow-hidden">
-                        <div className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${aiAnalysis.score}%`,
-                            background: aiAnalysis.score >= 70 ? 'var(--green)' : aiAnalysis.score >= 50 ? '#D97706' : 'var(--red)',
-                          }}
-                        />
-                      </div>
+                      <div className="text-[10px] font-bold text-[var(--green)] uppercase tracking-wider mb-1">Strengths</div>
+                      <ul className="space-y-1">
+                        {assessment.topStrengths.map((s, i) => (
+                          <li key={i} className="text-[12px] text-[var(--t700)] flex gap-1.5"><span className="text-[var(--green)]">✓</span>{s}</li>
+                        ))}
+                      </ul>
                     </div>
-                  </div>
-                  {/* Gap analysis text */}
-                  <div className="rounded-[8px] p-3 bg-[var(--blue-50)] border border-[var(--blue-100)]">
-                    <p className="text-[12px] text-[var(--t700)] leading-relaxed whitespace-pre-wrap">{aiAnalysis.gap_analysis}</p>
-                  </div>
+                  )}
+                  {assessment.topGaps.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-bold text-[var(--amber)] uppercase tracking-wider mb-1">Biggest gaps</div>
+                      <ul className="space-y-1">
+                        {assessment.topGaps.map((g, i) => (
+                          <li key={i} className="text-[12px] text-[var(--t700)] flex gap-1.5"><span className="text-[var(--amber)]">→</span>{g}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {assessment.recommendedNextSteps.length > 0 && (
+                    <div className="rounded-[8px] p-3 bg-[var(--blue-50)] border border-[var(--blue-100)]">
+                      <div className="text-[10px] font-bold text-[var(--blue)] uppercase tracking-wider mb-1">Recommended next steps</div>
+                      <ul className="space-y-1">
+                        {assessment.recommendedNextSteps.map((r, i) => (
+                          <li key={i} className="text-[12px] text-[var(--t700)] flex gap-1.5"><span className="text-[var(--blue)]">{i + 1}.</span>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <p className="text-[12px] text-[var(--t500)] leading-relaxed">
+                  Run an assessment to see your strongest areas and the highest-leverage gaps for{' '}
+                  <span className="font-semibold text-[var(--t700)]">{targetProgramme || 'your target programme'}</span>.
+                </p>
               )}
             </div>
 

@@ -1,0 +1,18 @@
+{
+  "functions": {
+    "src/app/api/**": {
+      "maxDuration": 60
+    }
+  },
+  "regions": ["hkg1"],
+  "crons": [
+    {
+      "path": "/api/cron/classify-documents",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/kb-stale",
+      "schedule": "0 1 * * 1"
+    }
+  ]
+}

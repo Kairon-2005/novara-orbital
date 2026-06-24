@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
+import { planProgress, toggleDocument } from '@/lib/university-plan'
+import type { ApplicationPlan } from '@/lib/university-plan'
 
 // ── Types ─────────────────────────────────────────────────────
-
-export type TargetGap = { summary: string; strengths: string[]; gaps: string[] }
+// Fit/readiness analysis lives in the Portfolio assessment now — this page only
+// manages application logistics (requirements, deadlines, status, links).
 
 export interface UniversityTarget {
   id: string
@@ -18,13 +20,20 @@ export interface UniversityTarget {
   notes: string
   status: 'researching' | 'applied' | 'offer' | 'rejected' | 'enrolled'
   referenceLink: string
-  gapScore: number | null
-  gap: TargetGap | null
+  applicationPlan: ApplicationPlan | null
+  planUpdatedAt: string | null
+}
+
+export interface ProfileDefaults {
+  university: string
+  programme: string
+  enrollmentYear: number | null
 }
 
 interface Props {
   initialTargets: UniversityTarget[]
   userId: string
+  profileDefaults: ProfileDefaults
 }
 
 // ── Constants ─────────────────────────────────────────────────
@@ -51,13 +60,6 @@ function countryFlag(country: string) {
   return COUNTRY_EMOJI[country] ?? '🌏'
 }
 
-function scoreColor(s: number | null) {
-  if (s == null) return 'var(--t500)'
-  if (s >= 70) return 'var(--green)'
-  if (s >= 40) return 'var(--amber)'
-  return 'var(--red)'
-}
-
 function daysUntil(dateStr: string | null): { text: string; urgent: boolean } {
   if (!dateStr) return { text: 'No deadline set', urgent: false }
   const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000)
@@ -69,94 +71,117 @@ function daysUntil(dateStr: string | null): { text: string; urgent: boolean } {
 }
 
 // ── Add University Form ───────────────────────────────────────
+// Three fields only — school, programme, intake year — prefilled from the
+// student's profile. Deadlines/requirements come from the generated plan,
+// not manual entry.
 
-function AddForm({ onAdd, onCancel }: { onAdd: (u: UniversityTarget) => void; onCancel: () => void }) {
-  const [name, setProgramme]  = useState('')  // reusing vars for simplicity
-  const [uniName, setUniName] = useState('')
-  const [country, setCountry] = useState('')
-  const [programme, setProg]  = useState('')
-  const [deadline, setDeadline] = useState('')
-  const [notes, setNotes]     = useState('')
-  const [refLink, setRefLink] = useState('')
-  const [saving, setSaving]   = useState(false)
+function AddForm({ defaults, onAdd, onCancel }: {
+  defaults: ProfileDefaults
+  onAdd: (u: UniversityTarget) => void
+  onCancel: () => void
+}) {
+  const currentYear = new Date().getFullYear()
+  const [uniName, setUniName] = useState(defaults.university)
+  const [programme, setProg]  = useState(defaults.programme)
+  const [year, setYear]       = useState(defaults.enrollmentYear ?? currentYear + 1)
+  const [phase, setPhase]     = useState<'idle' | 'saving' | 'planning'>('idle')
   const supabase = createBrowserClient()
+  const toast = useToast()
+
+  const prefilled = Boolean(defaults.university || defaults.programme)
+  const years = Array.from({ length: 7 }, (_, i) => currentYear + i)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!uniName.trim()) return
-    setSaving(true)
+    if (!uniName.trim() || phase !== 'idle') return
+    setPhase('saving')
     const { data, error } = await supabase
       .from('university_targets')
       .insert({
-        name:        uniName.trim(),
-        country:     country.trim(),
-        programme:   programme.trim(),
-        deadline:    deadline || null,
-        notes:       notes.trim(),
+        name: uniName.trim(),
+        programme: programme.trim(),
+        country: '',
         requirements: '',
-        reference_link: refLink.trim(),
-        status:      'researching',
+        notes: '',
+        reference_link: '',
+        status: 'researching',
       })
       .select('id')
       .single()
-    setSaving(false)
-    if (!error && data) {
-      onAdd({
-        id:           data.id,
-        name:         uniName.trim(),
-        country:      country.trim(),
-        programme:    programme.trim(),
-        deadline:     deadline || null,
-        requirements: '',
-        notes:        notes.trim(),
-        status:       'researching',
-        referenceLink: refLink.trim(),
-        gapScore:     null,
-        gap:          null,
-      })
+    if (error || !data) {
+      setPhase('idle')
+      toast({ title: 'Could not add the university', variant: 'error' })
+      return
     }
+
+    // Generate the plan immediately — this is the assistant's whole point.
+    setPhase('planning')
+    let plan: ApplicationPlan | null = null
+    let planUpdatedAt: string | null = null
+    try {
+      const res = await fetch('/api/universities/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: data.id }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        plan = json.plan
+        planUpdatedAt = json.planUpdatedAt
+      }
+    } catch { /* plan can be regenerated from the card */ }
+
+    onAdd({
+      id: data.id,
+      name: uniName.trim(),
+      country: '',
+      programme: programme.trim(),
+      deadline: null,
+      requirements: '',
+      notes: '',
+      status: 'researching',
+      referenceLink: '',
+      applicationPlan: plan,
+      planUpdatedAt,
+    })
+    if (!plan) toast({ title: 'Added — plan generation failed', description: 'Open the card and tap "Generate plan" to retry.', variant: 'error' })
   }
 
   const cls = "w-full px-3 py-2.5 border border-[var(--border)] rounded-[8px] text-[13px] bg-white text-[var(--t900)] focus:outline-none focus:border-[var(--blue)] placeholder:text-[var(--t300)]"
 
   return (
     <form onSubmit={submit} className="bg-[var(--blue-50)] border border-[var(--blue-100)] rounded-[12px] p-5 mb-5 flex flex-col gap-3">
-      <div className="font-display font-bold text-[13px] text-[var(--blue)]">Add university to wishlist</div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="font-display font-bold text-[13px] text-[var(--blue)]">Add a target university</div>
+      {prefilled && (
+        <div className="text-[11px] text-[var(--t500)]">Pre-filled from your profile — adjust if this target differs.</div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">University name *</label>
-          <input value={uniName} onChange={e => setUniName(e.target.value)} placeholder="e.g. UCL, NUS, MIT" className={cls} required />
+          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">University *</label>
+          <input value={uniName} onChange={e => setUniName(e.target.value)} placeholder="e.g. NUS, NTU, UCL" className={cls} required />
         </div>
-        <div>
-          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Country</label>
-          <input value={country} onChange={e => setCountry(e.target.value)} placeholder="UK, Singapore, US…" className={cls} />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Programme</label>
-          <input value={programme} onChange={e => setProg(e.target.value)} placeholder="Computer Science BSc" className={cls} />
+          <input value={programme} onChange={e => setProg(e.target.value)} placeholder="Computer Science" className={cls} />
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Application deadline</label>
-          <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className={cls} />
+          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Intake year</label>
+          <select value={year} onChange={e => setYear(Number(e.target.value))} className={cls}>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Official website</label>
-          <input value={refLink} onChange={e => setRefLink(e.target.value)} placeholder="https://…" className={cls} />
+      <div className="flex items-center justify-between pt-1">
+        <div className="text-[11px] text-[var(--t400)]">
+          Deadlines &amp; document checklist are generated automatically{' '}
+          {phase === 'planning' && <span className="font-semibold text-[var(--blue)]">— generating…</span>}
         </div>
-        <div>
-          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Notes</label>
-          <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Why this university?" className={cls} />
+        <div className="flex gap-2">
+          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-[7px] text-[12px] font-semibold text-[var(--t500)] hover:bg-white transition">Cancel</button>
+          <button type="submit" disabled={phase !== 'idle'} className="px-4 py-2 rounded-[7px] text-[12px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)] disabled:opacity-50 transition">
+            {phase === 'saving' ? 'Adding…' : phase === 'planning' ? 'Building plan…' : '+ Add & build plan'}
+          </button>
         </div>
-      </div>
-      <div className="flex justify-end gap-2 pt-1">
-        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-[7px] text-[12px] font-semibold text-[var(--t500)] hover:bg-white transition">Cancel</button>
-        <button type="submit" disabled={saving} className="px-4 py-2 rounded-[7px] text-[12px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)] disabled:opacity-50 transition">
-          {saving ? 'Adding…' : '+ Add university'}
-        </button>
       </div>
     </form>
   )
@@ -174,13 +199,15 @@ function UniversityCard({
 }) {
   const [expanded, setExpanded]   = useState(false)
   const [fetching, setFetching]   = useState(false)
-  const [analysing, setAnalysing] = useState(false)
   const [editNotes, setEditNotes] = useState(false)
   const [notesVal, setNotesVal]   = useState(target.notes)
   const [editLink, setEditLink]   = useState(false)
   const [linkVal, setLinkVal]     = useState(target.referenceLink)
+  const [planLoading, setPlanLoading] = useState(false)
   const supabase = createBrowserClient()
   const toast = useToast()
+  const plan = target.applicationPlan
+  const progress = plan ? planProgress(plan) : null
 
   const sc = STATUS_CONFIG[target.status]
   const dl = daysUntil(target.deadline)
@@ -217,31 +244,6 @@ function UniversityCard({
     onDelete(target.id)
   }
 
-  async function handleAnalyseFit() {
-    setAnalysing(true)
-    setExpanded(true)
-    try {
-      const res = await fetch('/api/universities/gap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetId: target.id }),
-      })
-      const json = await res.json() as { gap?: TargetGap & { score: number }; error?: string }
-      if (res.ok && json.gap) {
-        onUpdate(target.id, {
-          gapScore: json.gap.score,
-          gap: { summary: json.gap.summary, strengths: json.gap.strengths, gaps: json.gap.gaps },
-        })
-      } else {
-        toast({ title: 'Analysis failed', description: json.error ?? 'Please try again.', variant: 'error' })
-      }
-    } catch {
-      toast({ title: 'Analysis failed', description: 'Network error.', variant: 'error' })
-    } finally {
-      setAnalysing(false)
-    }
-  }
-
   async function handleSaveLink() {
     const v = linkVal.trim()
     await supabase.from('university_targets').update({ reference_link: v }).eq('id', target.id)
@@ -262,6 +264,49 @@ function UniversityCard({
     toast(error
       ? { title: 'Could not add to calendar', description: 'Please try again.', variant: 'error' }
       : { title: 'Added to calendar', description: `${target.name} deadline`, variant: 'success' })
+  }
+
+  async function handleGeneratePlan() {
+    setPlanLoading(true)
+    try {
+      const res = await fetch('/api/universities/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: target.id }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      onUpdate(target.id, { applicationPlan: json.plan, planUpdatedAt: json.planUpdatedAt })
+    } catch {
+      toast({ title: 'Plan generation failed', description: 'Please try again.', variant: 'error' })
+    } finally {
+      setPlanLoading(false)
+    }
+  }
+
+  async function handleToggleDocument(docId: string) {
+    if (!target.applicationPlan) return
+    const next = toggleDocument(target.applicationPlan, docId)
+    onUpdate(target.id, { applicationPlan: next }) // optimistic
+    const { error } = await supabase
+      .from('university_targets')
+      .update({ application_plan: next })
+      .eq('id', target.id)
+    if (error) onUpdate(target.id, { applicationPlan: target.applicationPlan })
+  }
+
+  async function handleAddPlanDeadline(date: string, title: string) {
+    const { error } = await supabase.from('calendar_events').insert({
+      student_id: userId,
+      title:      `${target.name}: ${title}`,
+      event_date: date,
+      type:       'application',
+      source:     'manual',
+      notes:      target.programme || null,
+    })
+    toast(error
+      ? { title: 'Could not add to calendar', variant: 'error' }
+      : { title: 'Added to calendar', description: `${title} · ${date}`, variant: 'success' })
   }
 
   return (
@@ -358,6 +403,106 @@ function UniversityCard({
             )}
           </div>
 
+          {/* Application plan: window, deadlines, document checklist, sources */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-[11px] font-semibold text-[var(--t500)] uppercase tracking-wider">
+                Application plan
+                {plan && (plan.verified
+                  ? <span className="ml-2 normal-case tracking-normal font-semibold text-[10px] px-1.5 py-0.5 rounded bg-[var(--green-50)] text-[var(--green)]">✓ from official sources</span>
+                  : <span className="ml-2 normal-case tracking-normal font-semibold text-[10px] px-1.5 py-0.5 rounded bg-[var(--amber-50)] text-[var(--amber)]">unverified — check official site</span>
+                )}
+              </div>
+              <button
+                onClick={handleGeneratePlan}
+                disabled={planLoading}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-[6px] bg-[var(--blue-50)] text-[var(--blue)] hover:bg-[var(--blue-100)] disabled:opacity-50 transition"
+              >
+                {planLoading ? 'Building…' : plan ? '↻ Refresh plan' : '✦ Generate plan'}
+              </button>
+            </div>
+
+            {!plan && !planLoading && (
+              <div className="text-[12px] text-[var(--t300)] italic py-1">
+                Generate to get the application window, every deadline, and a document checklist.
+              </div>
+            )}
+
+            {plan && (
+              <div className="space-y-3">
+                {plan.applicationWindow && (
+                  <div className="text-[12px] text-[var(--t700)] bg-[var(--bg)] rounded-[8px] px-3 py-2">
+                    <span className="font-semibold">Application window:</span>{' '}
+                    {plan.applicationWindow.opens} → {plan.applicationWindow.closes}
+                  </div>
+                )}
+
+                {plan.deadlines.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-semibold text-[var(--t500)] mb-1">Deadlines</div>
+                    <div className="space-y-1">
+                      {plan.deadlines.map((d, i) => {
+                        const dd = daysUntil(d.date)
+                        return (
+                          <div key={i} className="flex items-center gap-2 text-[12px]">
+                            <span className="font-medium text-[var(--t700)] whitespace-nowrap">{d.date}</span>
+                            <span className="text-[var(--t500)] flex-1 min-w-0 truncate" title={d.description}>{d.title}</span>
+                            <span className="text-[11px] whitespace-nowrap" style={{ color: dd.urgent ? 'var(--red)' : 'var(--t300)' }}>{dd.text}</span>
+                            <button
+                              onClick={() => handleAddPlanDeadline(d.date, d.title)}
+                              title="Add to calendar"
+                              className="text-[11px] px-1.5 py-0.5 rounded border border-[var(--border)] text-[var(--t500)] hover:bg-[var(--bg)] transition"
+                            >📅</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {plan.documents.length > 0 && progress && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[11px] font-semibold text-[var(--t500)]">Documents to prepare</div>
+                      <div className="text-[11px] text-[var(--t400)]">{progress.done}/{progress.total}</div>
+                    </div>
+                    <div className="h-1.5 bg-[var(--bg)] rounded-full overflow-hidden mb-2">
+                      <div className="h-full bg-[var(--green)] transition-all" style={{ width: `${progress.pct}%` }} />
+                    </div>
+                    <div className="space-y-1">
+                      {plan.documents.map((d) => (
+                        <label key={d.id} className="flex items-start gap-2 text-[12px] cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            checked={d.done}
+                            onChange={() => handleToggleDocument(d.id)}
+                            className="mt-0.5"
+                          />
+                          <span className={d.done ? 'line-through text-[var(--t300)]' : 'text-[var(--t700)] group-hover:text-[var(--t900)]'}>
+                            {d.title}
+                            {!d.required && <span className="text-[var(--t300)]"> (optional)</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(plan.notes || plan.sources.length > 0 || target.planUpdatedAt) && (
+                  <div className="text-[11px] text-[var(--t400)] space-y-1 pt-1 border-t border-[var(--border)]">
+                    {plan.notes && <div>ⓘ {plan.notes}</div>}
+                    {plan.sources.map((s) => (
+                      <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" className="block text-[var(--blue)] hover:underline truncate">
+                        {s.title ?? s.url}{s.lastVerified ? ` · verified ${s.lastVerified}` : ''}
+                      </a>
+                    ))}
+                    {target.planUpdatedAt && <div>Plan generated {target.planUpdatedAt.slice(0, 10)}</div>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Requirements */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -385,62 +530,6 @@ function UniversityCard({
             ) : (
               <div className="text-[12px] text-[var(--t300)] italic py-2">
                 Click &ldquo;Fetch with AI&rdquo; to get entry requirements, language scores, and deadlines.
-              </div>
-            )}
-          </div>
-
-          {/* AI fit / gap analysis */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="text-[11px] font-semibold text-[var(--t500)] uppercase tracking-wider">Your fit</div>
-              <button
-                onClick={handleAnalyseFit}
-                disabled={analysing}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-[6px] bg-[var(--blue-50)] text-[var(--blue)] hover:bg-[var(--blue-100)] disabled:opacity-50 transition"
-              >
-                {analysing ? (
-                  <>
-                    <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                    </svg>
-                    Analysing…
-                  </>
-                ) : '✦ Analyse my fit'}
-              </button>
-            </div>
-            {target.gap ? (
-              <div className="bg-[var(--bg)] rounded-[8px] p-3 space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <div className="font-display font-extrabold text-[22px] leading-none" style={{ color: scoreColor(target.gapScore) }}>
-                    {target.gapScore}%
-                  </div>
-                  <div className="text-[12px] text-[var(--t700)] leading-[1.6] flex-1">{target.gap.summary}</div>
-                </div>
-                {target.gap.strengths.length > 0 && (
-                  <div>
-                    <div className="text-[10px] font-bold text-[var(--green)] uppercase tracking-wider mb-1">Strengths</div>
-                    <ul className="space-y-0.5">
-                      {target.gap.strengths.map((s, i) => (
-                        <li key={i} className="text-[12px] text-[var(--t700)] flex gap-1.5"><span className="text-[var(--green)]">✓</span>{s}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {target.gap.gaps.length > 0 && (
-                  <div>
-                    <div className="text-[10px] font-bold text-[var(--amber)] uppercase tracking-wider mb-1">To improve</div>
-                    <ul className="space-y-0.5">
-                      {target.gap.gaps.map((g, i) => (
-                        <li key={i} className="text-[12px] text-[var(--t700)] flex gap-1.5"><span className="text-[var(--amber)]">→</span>{g}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-[12px] text-[var(--t300)] italic py-2">
-                Click &ldquo;Analyse my fit&rdquo; for an AI assessment of your profile vs. this university.
               </div>
             )}
           </div>
@@ -494,7 +583,7 @@ function UniversityCard({
 
 // ── Main client ───────────────────────────────────────────────
 
-export default function UniversityClient({ initialTargets, userId }: Props) {
+export default function UniversityClient({ initialTargets, userId, profileDefaults }: Props) {
   const [targets, setTargets] = useState<UniversityTarget[]>(initialTargets)
   const [showForm, setShowForm] = useState(false)
 
@@ -523,8 +612,8 @@ export default function UniversityClient({ initialTargets, userId }: Props) {
       {/* Header */}
       <div className="bg-white border-b border-[var(--border)] px-9 h-14 flex items-center justify-between sticky top-0 z-50">
         <div>
-          <div className="font-display font-bold text-[17px] text-[var(--t900)]">Application Assistant</div>
-          <div className="text-[11px] text-[var(--t500)] mt-0.5">{targets.length} universities · AI requirements & fit analysis</div>
+          <div className="font-display font-bold text-[17px] text-[var(--t900)]">Application Tracker</div>
+          <div className="text-[11px] text-[var(--t500)] mt-0.5">{targets.length} universities · requirements, deadlines & status</div>
         </div>
         <button
           onClick={() => setShowForm(v => !v)}
@@ -539,7 +628,7 @@ export default function UniversityClient({ initialTargets, userId }: Props) {
 
       <div className="p-[28px_36px] flex-1">
         {/* Add form */}
-        {showForm && <AddForm onAdd={handleAdd} onCancel={() => setShowForm(false)} />}
+        {showForm && <AddForm defaults={profileDefaults} onAdd={handleAdd} onCancel={() => setShowForm(false)} />}
 
         {/* Empty state */}
         {targets.length === 0 && !showForm && (

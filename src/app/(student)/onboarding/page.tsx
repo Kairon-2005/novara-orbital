@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
 
@@ -23,6 +23,26 @@ const ENGLISH = ['Beginner', 'Intermediate', 'Advanced']
 const NOW_YEAR = new Date().getFullYear()
 const ENROLL_YEARS = Array.from({ length: 9 }, (_, i) => NOW_YEAR + i)
 
+// MVP target scope: NUS / NTU, three programme tracks, the supported routes.
+const TARGET_SCHOOLS: Array<{ label: string; value: string }> = [
+  { label: 'NUS', value: 'NUS' },
+  { label: 'NTU', value: 'NTU' },
+  { label: 'NUS or NTU (both)', value: 'Both' },
+]
+const PROGRAMME_CATEGORIES: Array<{ label: string; value: string }> = [
+  { label: 'Computer Science / AI / Data', value: 'CS_AI_Data' },
+  { label: 'Business / Finance / Economics', value: 'Business_Finance_Econ' },
+  { label: 'Engineering', value: 'Engineering' },
+]
+const APPLICATION_ROUTES: Array<{ label: string; value: string }> = [
+  { label: 'IB', value: 'IB' },
+  { label: 'International A-Level', value: 'A_Level' },
+  { label: 'AP / American High School', value: 'AP' },
+  { label: '中国高考 (Gaokao)', value: 'Gaokao' },
+  { label: 'Other', value: 'Other' },
+  { label: "I'm not sure yet", value: 'Unknown' },
+]
+
 export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
@@ -31,8 +51,9 @@ export default function OnboardingPage() {
     current_year: '',
     current_school: '',
     current_curriculum: '',
-    target_university: '',
-    target_programme: '',
+    target_school: '',
+    programme_category: '',
+    application_route: '',
     target_enrollment_year: '',
     interests: '',
     budget_range: '',
@@ -40,6 +61,36 @@ export default function OnboardingPage() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [hydrating, setHydrating] = useState(true)
+  const [isEditing, setIsEditing] = useState(false)
+
+  // Pre-fill the form with the saved profile so it doubles as a view/edit screen.
+  useEffect(() => {
+    let active = true
+    fetch('/api/profile')
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: { studentProfile?: Record<string, unknown> } | null) => {
+        if (!active || !d?.studentProfile) return
+        const sp = d.studentProfile
+        const str = (v: unknown) => (v == null ? '' : String(v))
+        setForm({
+          current_year:           str(sp.current_year),
+          current_school:         str(sp.current_school),
+          current_curriculum:     str(sp.current_curriculum),
+          target_school:          str(sp.target_school),
+          programme_category:     str(sp.programme_category),
+          application_route:      str(sp.application_route),
+          target_enrollment_year: str(sp.target_enrollment_year),
+          interests:              str(sp.interests),
+          budget_range:           str(sp.budget_range),
+          english_level:          str(sp.english_level),
+        })
+        if (sp.onboarding_done) setIsEditing(true)
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setHydrating(false) })
+    return () => { active = false }
+  }, [])
 
   const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }))
 
@@ -58,6 +109,9 @@ export default function OnboardingPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
+        // Keep the legacy free-text fields populated from the structured choices
+        target_university: form.target_school,
+        target_programme: PROGRAMME_CATEGORIES.find(c => c.value === form.programme_category)?.label ?? form.programme_category,
         target_enrollment_year: Number(form.target_enrollment_year),
         onboarding_done: true,
       }),
@@ -76,6 +130,17 @@ export default function OnboardingPage() {
   const selectClass = inputClass + " appearance-none cursor-pointer"
   const labelClass = "block text-[12px] font-semibold text-[var(--t700)] mb-1.5"
 
+  if (hydrating) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+        <svg className="animate-spin w-6 h-6 text-[var(--blue)]" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center py-12 px-4">
       <div className="w-full max-w-2xl">
@@ -87,10 +152,12 @@ export default function OnboardingPage() {
             <span className="font-display font-extrabold text-[22px] text-[var(--t900)]">Novara</span>
           </div>
           <h1 className="font-display font-bold text-[24px] text-[var(--t900)] mb-2">
-            Tell us about yourself
+            {isEditing ? 'Your profile' : 'Tell us about yourself'}
           </h1>
           <p className="text-[14px] text-[var(--t500)]">
-            We&apos;ll build your personalised Singapore education roadmap based on your answers.
+            {isEditing
+              ? 'Review your details — change any field and save. Your roadmap and assessment use this.'
+              : 'We’ll build your personalised Singapore education roadmap based on your answers.'}
           </p>
         </div>
 
@@ -149,25 +216,24 @@ export default function OnboardingPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Target university</label>
-                  <input
-                    type="text"
-                    value={form.target_university}
-                    onChange={e => set('target_university', e.target.value)}
-                    placeholder="e.g. NUS, UCL, MIT"
-                    className={inputClass}
-                    required
-                  />
+                  <select value={form.target_school} onChange={e => set('target_school', e.target.value)} className={selectClass} required>
+                    <option value="">Select university…</option>
+                    {TARGET_SCHOOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className={labelClass}>Target programme</label>
-                  <input
-                    type="text"
-                    value={form.target_programme}
-                    onChange={e => set('target_programme', e.target.value)}
-                    placeholder="e.g. Medicine, Computer Science, Law"
-                    className={inputClass}
-                    required
-                  />
+                  <select value={form.programme_category} onChange={e => set('programme_category', e.target.value)} className={selectClass} required>
+                    <option value="">Select programme…</option>
+                    {PROGRAMME_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className={labelClass}>Application route</label>
+                  <select value={form.application_route} onChange={e => set('application_route', e.target.value)} className={selectClass} required>
+                    <option value="">Select your application route…</option>
+                    {APPLICATION_ROUTES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
                 </div>
                 <div className="col-span-2">
                   <label className={labelClass}>
@@ -240,7 +306,7 @@ export default function OnboardingPage() {
                     Saving your profile…
                   </>
                 ) : (
-                  'Generate my roadmap →'
+                  isEditing ? 'Save changes' : 'Generate my roadmap →'
                 )}
               </button>
               <p className="text-center text-[11px] text-[var(--t300)] mt-2">

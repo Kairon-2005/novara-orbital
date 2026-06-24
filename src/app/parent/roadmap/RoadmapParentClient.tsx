@@ -1,10 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import {
-  computeXP, computeBadges, getLevelInfo,
-  type MockMilestone, type MilestoneType, type MockAchievement, type MockDocument,
-} from '@/lib/mock-data'
+import { summarizeProgress } from '@/lib/gamification'
+import type { MockMilestone, MilestoneType, MockAchievement, MockDocument } from '@/types/models'
 
 // ── Chinese labels ─────────────────────────────────────────────────────────────
 
@@ -135,9 +133,7 @@ interface RoadmapParentClientProps {
 
 export default function RoadmapParentClient({ milestones, achievements, documents, childName }: RoadmapParentClientProps) {
   const child = { display_name: childName, display_name_cn: childName, current_school: 'ACS International', target_university: 'UCL / NUS', current_year: 1, current_curriculum: 'IB' }
-  const xp    = computeXP(achievements, milestones, documents)
-  const level = getLevelInfo(xp)
-  const badges = computeBadges(achievements, milestones, documents)
+  const { xp, level, badges } = summarizeProgress({ achievements, milestones, documents })
 
   const byYear = useMemo(() => {
     const m: Record<number, MockMilestone[]> = {}

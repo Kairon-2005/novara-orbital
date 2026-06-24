@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
-import type { MockDocument, DocumentFileType } from '@/lib/mock-data'
+import type { MockDocument, DocumentFileType } from '@/types/models'
 
 // ── File type config ──────────────────────────────────────────────────────────
 
@@ -59,6 +59,29 @@ function DocRow({ doc, onToggleAccess, onDelete }: {
         <div className="text-[11px] text-[var(--t500)] mt-0.5">
           {cfg.label} · {doc.upload_date} · {formatSize(doc.size_kb)}
         </div>
+        {doc.classifying && (
+          <div className="text-[11px] text-[var(--blue)] mt-1 flex items-center gap-1.5">
+            <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            Analysing…
+          </div>
+        )}
+        {!doc.classifying && doc.summary && (
+          <div className="text-[11px] text-[var(--t500)] mt-1 flex items-start gap-1.5">
+            {doc.relevance && (
+              <span className="inline-flex items-center px-1.5 py-px rounded-[4px] text-[9px] font-bold uppercase flex-shrink-0"
+                style={{
+                  background: doc.relevance === 'high' ? 'var(--green-50)' : doc.relevance === 'medium' ? '#FFFBEB' : '#F3F4F6',
+                  color:      doc.relevance === 'high' ? 'var(--green)' : doc.relevance === 'medium' ? '#B45309' : 'var(--t500)',
+                }}>
+                ✦ {doc.relevance}
+              </span>
+            )}
+            <span className="leading-snug">{doc.summary}</span>
+          </div>
+        )}
       </div>
 
       {/* Parent access toggle */}
@@ -142,9 +165,11 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
           upload_date: new Date().toISOString().slice(0, 10),
           size_kb: Math.round(file.size / 1024),
           parent_access: false,
+          classifying: true,
         }
         setDocs(prev => [newDoc, ...prev])
-        toast({ title: 'Document uploaded', description: file.name, variant: 'success' })
+        toast({ title: 'Document uploaded', description: 'Analysing in the background…', variant: 'success' })
+        void classifyInBackground(json.id as string)
       } else {
         toast({ title: 'Upload failed', description: json.error ?? 'Please try again.', variant: 'error' })
       }
@@ -152,6 +177,26 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
       toast({ title: 'Upload failed', description: 'Network error. Please try again.', variant: 'error' })
     } finally {
       setUploading(false)
+    }
+  }
+
+  // Fire-and-forget: classification runs out-of-band; the row updates when it lands.
+  async function classifyInBackground(id: string) {
+    try {
+      const res = await fetch('/api/documents/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      const json = await res.json() as { classification?: { summary?: string; relevance?: string } }
+      setDocs(prev => prev.map(d => d.id === id
+        ? { ...d, classifying: false, summary: json.classification?.summary, relevance: json.classification?.relevance }
+        : d))
+      if (json.classification) {
+        toast({ title: 'Evidence analysed', description: 'Reassess your readiness on the Portfolio page to count it.', variant: 'success' })
+      }
+    } catch {
+      setDocs(prev => prev.map(d => d.id === id ? { ...d, classifying: false } : d))
     }
   }
 

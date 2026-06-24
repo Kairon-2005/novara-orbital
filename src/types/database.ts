@@ -6,6 +6,10 @@
 // to be present — without them every query falls back to `never`.
 // Also: use `type` not `interface`, and spell out Insert/Update explicitly (no self-referential Omit).
 
+import type { PortfolioAssessment } from '@/types/assessment'
+import type { EvidenceClassification } from '@/types/evidence'
+import type { ApplicationPlan } from '@/lib/university-plan'
+
 export type Role = 'student' | 'parent'
 export type MilestoneType = 'exam' | 'competition' | 'cca' | 'application' | 'academic' | 'other'
 export type AchievementCategory = 'competition' | 'academic' | 'cca' | 'volunteer' | 'award' | 'other'
@@ -14,6 +18,9 @@ export type DocumentFileType = 'transcript' | 'report_card' | 'certificate' | 'p
 export type DocumentPermission = 'read' | 'edit'
 export type SchoolType = 'primary' | 'secondary' | 'jc' | 'poly' | 'university' | 'language_school' | 'diploma'
 export type SchoolCurriculum = 'IB' | 'A-Level' | 'AP' | 'O-Level' | 'Local' | 'Mixed'
+export type ReportLevel = 'secondary' | 'undergraduate'
+export type ReportRoute = 'IB' | 'A-Level' | 'AP' | 'Gaokao' | 'O-Level' | 'AEIS' | 'DSA' | 'Poly' | 'Other'
+export type ReportResult = 'offer' | 'rejected' | 'waitlist' | 'interview'
 
 export type Database = {
   public: {
@@ -33,6 +40,7 @@ export type Database = {
           target_programme: string | null; interests: string | null
           budget_range: string | null; english_level: string | null
           target_enrollment_year: number | null
+          application_route: string | null; target_school: string | null; programme_category: string | null
           invite_code: string | null; onboarding_done: boolean
           created_at: string; updated_at: string
         }
@@ -44,6 +52,7 @@ export type Database = {
           target_programme?: string | null; interests?: string | null
           budget_range?: string | null; english_level?: string | null
           target_enrollment_year?: number | null
+          application_route?: string | null; target_school?: string | null; programme_category?: string | null
           invite_code?: string | null; onboarding_done?: boolean
         }
         Update: {
@@ -53,6 +62,7 @@ export type Database = {
           target_programme?: string | null; interests?: string | null
           budget_range?: string | null; english_level?: string | null
           target_enrollment_year?: number | null
+          application_route?: string | null; target_school?: string | null; programme_category?: string | null
           invite_code?: string | null; onboarding_done?: boolean
           updated_at?: string
         }
@@ -74,14 +84,17 @@ export type Database = {
         Row: {
           user_id: string; first_generation_used: boolean
           last_free_generation_at: string | null; total_generations: number
+          free_used_this_year: number
         }
         Insert: {
           user_id: string; first_generation_used?: boolean
           last_free_generation_at?: string | null; total_generations?: number
+          free_used_this_year?: number
         }
         Update: {
           first_generation_used?: boolean
           last_free_generation_at?: string | null; total_generations?: number
+          free_used_this_year?: number
         }
         Relationships: []
       }
@@ -124,6 +137,22 @@ export type Database = {
         Row:    { id: string; student_id: string; score: number; gap_analysis: string; calculated_at: string }
         Insert: { id?: string; student_id: string; score: number; gap_analysis: string; calculated_at?: string }
         Update: { score?: number; gap_analysis?: string }
+        Relationships: []
+      }
+      portfolio_assessments: {
+        Row: {
+          id: string; student_id: string; overall_level: string
+          overall_summary: string; confidence: string
+          result: PortfolioAssessment; created_at: string
+        }
+        Insert: {
+          id?: string; student_id: string; overall_level: string
+          overall_summary?: string; confidence?: string; result: PortfolioAssessment
+        }
+        Update: {
+          overall_level?: string; overall_summary?: string
+          confidence?: string; result?: PortfolioAssessment
+        }
         Relationships: []
       }
       homestay_listings: {
@@ -175,15 +204,18 @@ export type Database = {
         Row: {
           id: string; student_id: string; file_name: string
           storage_path: string; file_type: DocumentFileType
+          extracted_text: string | null; classification: EvidenceClassification | null
           upload_date: string; created_at: string
         }
         Insert: {
           id?: string; student_id: string; file_name: string
           storage_path: string; file_type: DocumentFileType
+          extracted_text?: string | null; classification?: EvidenceClassification | null
           upload_date?: string
         }
         Update: {
           file_name?: string; file_type?: DocumentFileType
+          extracted_text?: string | null; classification?: EvidenceClassification | null
         }
         Relationships: []
       }
@@ -377,6 +409,63 @@ export type Database = {
         Update: { saved_at?: string }
         Relationships: []
       }
+      admission_reports: {
+        Row: {
+          id: string; author_id: string; anonymous: boolean
+          level: ReportLevel; institution: string; programme: string | null
+          route: ReportRoute; result: ReportResult; apply_year: number
+          scholarship_name: string | null
+          grades: string | null; english_test: string | null
+          standardized_tests: string | null; activities: string | null
+          admission_experience: string
+          interview_experience: string | null; scholarship_experience: string | null
+          proof_path: string | null; verified: boolean
+          visibility: 'public' | 'contributors'
+          upvotes: number
+          moderation_status: 'approved' | 'flagged' | 'removed'; created_at: string
+        }
+        Insert: {
+          id?: string; author_id: string; anonymous?: boolean
+          level: ReportLevel; institution: string; programme?: string | null
+          route: ReportRoute; result: ReportResult; apply_year: number
+          scholarship_name?: string | null
+          grades?: string | null; english_test?: string | null
+          standardized_tests?: string | null; activities?: string | null
+          admission_experience: string
+          interview_experience?: string | null; scholarship_experience?: string | null
+        }
+        Update: {
+          anonymous?: boolean
+          institution?: string; programme?: string | null
+          route?: ReportRoute; result?: ReportResult; apply_year?: number
+          scholarship_name?: string | null
+          grades?: string | null; english_test?: string | null
+          standardized_tests?: string | null; activities?: string | null
+          admission_experience?: string
+          interview_experience?: string | null; scholarship_experience?: string | null
+          moderation_status?: 'approved' | 'flagged' | 'removed'
+        }
+        Relationships: []
+      }
+      report_upvotes: {
+        Row:    { user_id: string; report_id: string; created_at: string }
+        Insert: { user_id: string; report_id: string; created_at?: string }
+        Update: { created_at?: string }
+        Relationships: []
+      }
+      report_comments: {
+        Row: {
+          id: string; report_id: string; author_id: string; anonymous: boolean
+          body: string
+          moderation_status: 'approved' | 'flagged' | 'removed'; created_at: string
+        }
+        Insert: {
+          id?: string; report_id: string; author_id: string; anonymous?: boolean
+          body: string
+        }
+        Update: { body?: string; anonymous?: boolean; moderation_status?: 'approved' | 'flagged' | 'removed' }
+        Relationships: []
+      }
       university_targets: {
         Row: {
           id: string
@@ -392,6 +481,8 @@ export type Database = {
           gap_analysis: string
           gap_score: number | null
           gap_updated_at: string | null
+          application_plan: ApplicationPlan | null
+          plan_updated_at: string | null
           created_at: string
         }
         Insert: {
@@ -408,6 +499,8 @@ export type Database = {
           gap_analysis?: string
           gap_score?: number | null
           gap_updated_at?: string | null
+          application_plan?: ApplicationPlan | null
+          plan_updated_at?: string | null
           created_at?: string
         }
         Update: {
@@ -422,6 +515,8 @@ export type Database = {
           gap_analysis?: string
           gap_score?: number | null
           gap_updated_at?: string | null
+          application_plan?: ApplicationPlan | null
+          plan_updated_at?: string | null
         }
         Relationships: []
       }

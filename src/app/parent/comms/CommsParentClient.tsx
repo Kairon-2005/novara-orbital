@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { MockComm, CommStatus } from '@/lib/mock-data'
+import type { MockComm, CommStatus } from '@/types/models'
 
 // ── Category labels ───────────────────────────────────────────────────────────
 

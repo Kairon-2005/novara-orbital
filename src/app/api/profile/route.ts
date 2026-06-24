@@ -33,6 +33,7 @@ export async function PATCH(request: Request) {
   const allowedFields = [
     'current_year', 'current_school', 'current_curriculum',
     'target_university', 'target_programme', 'target_enrollment_year',
+    'application_route', 'target_school', 'programme_category',
     'interests', 'budget_range', 'english_level', 'onboarding_done',
   ]
 
