@@ -4,7 +4,6 @@
     "roadmap": "学习路线图",
     "finance": "费用规划",
     "comms": "沟通中心",
-    "wellness": "健康状况",
     "homestay": "住家寄宿",
     "logout": "退出登录"
   },
@@ -16,7 +15,6 @@
     "roadmapTitle": "学习路线图",
     "financeTitle": "费用规划",
     "commsTitle": "沟通中心",
-    "wellnessTitle": "健康状况",
     "homestayTitle": "住家寄宿",
     "upcomingDeadlines": "近期重要日期",
     "recentAchievements": "近期成就",
