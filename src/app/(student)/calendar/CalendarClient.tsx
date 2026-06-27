@@ -123,11 +123,31 @@ function AddEventModal({ onAdd, onClose }: { onAdd: (e: CalEvent) => void | Prom
   )
 }
 
-// ── Edit Event Modal ──────────────────────────────────────────────────────────────────────
+// ── Reminder Banner ───────────────────────────────────────────────────────────
 
+function ReminderBanner({ reminders, onDismiss }: {
+  reminders: { event: CalEvent; daysLeft: number }[]
+  onDismiss: (id: string) => void
+}) {
+  if (reminders.length === 0) return null
 
-// ── Delete Event Modal ──────────────────────────────────────────────────────────────────────
-
+  return (
+    <div className="bg-amber-50 border-b border-amber-200 px-9 py-3 space-y-1">
+      {reminders.map(({ event, daysLeft }) => (
+        <div key={event.id} className="flex items-center justify-between">
+          <span className="text-[13px] text-amber-800 font-medium">
+            ⚠️ <span className="font-bold">{event.title}</span> is {daysLeft === 0 ? 'today!' : daysLeft === 1 ? 'tomorrow!' : `in ${daysLeft} days!`}
+          </span>
+          <button
+            onClick={() => onDismiss(event.id)}
+            className="text-amber-500 hover:text-amber-800 text-[18px] leading-none ml-4">
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
