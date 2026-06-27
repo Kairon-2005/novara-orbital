@@ -21,14 +21,18 @@ export type SchoolCurriculum = 'IB' | 'A-Level' | 'AP' | 'O-Level' | 'Local' | '
 export type ReportLevel = 'secondary' | 'undergraduate'
 export type ReportRoute = 'IB' | 'A-Level' | 'AP' | 'Gaokao' | 'O-Level' | 'AEIS' | 'DSA' | 'Poly' | 'Other'
 export type ReportResult = 'offer' | 'rejected' | 'waitlist' | 'interview'
+export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'mismatch'
+export type ReportProofKind = 'offer_letter' | 'transcript' | 'test_score' | 'other'
+export type ReportVoteValue = 1 | -1
+export type NotificationType = 'verification_done' | 'comment_on_case' | 'vote_on_case'
 
 export type Database = {
   public: {
     Tables: {
       profiles: {
-        Row:    { id: string; role: Role; display_name: string; preferred_language: string; created_at: string }
-        Insert: { id: string; role: Role; display_name: string; preferred_language?: string; created_at?: string }
-        Update: { id?: string; role?: Role; display_name?: string; preferred_language?: string }
+        Row:    { id: string; role: Role; display_name: string; pen_name: string | null; preferred_language: string; created_at: string }
+        Insert: { id: string; role: Role; display_name: string; pen_name?: string | null; preferred_language?: string; created_at?: string }
+        Update: { id?: string; role?: Role; display_name?: string; pen_name?: string | null; preferred_language?: string }
         Relationships: []
       }
       student_profiles: {
@@ -320,35 +324,6 @@ export type Database = {
         }
         Relationships: []
       }
-      emergency_contacts: {
-        Row: {
-          id: string; student_id: string
-          type: 'school_admin' | 'homestay' | 'polyclinic' | 'hospital' | 'doctor' | 'other'
-          name: string; phone: string; address: string | null; created_at: string
-        }
-        Insert: {
-          id?: string; student_id: string
-          type: 'school_admin' | 'homestay' | 'polyclinic' | 'hospital' | 'doctor' | 'other'
-          name: string; phone: string; address?: string | null
-        }
-        Update: {
-          type?: 'school_admin' | 'homestay' | 'polyclinic' | 'hospital' | 'doctor' | 'other'
-          name?: string; phone?: string; address?: string | null
-        }
-        Relationships: []
-      }
-      medical_appointments: {
-        Row: {
-          id: string; student_id: string; date: string
-          clinic_name: string; reason: string; notes: string | null; created_at: string
-        }
-        Insert: {
-          id?: string; student_id: string; date: string
-          clinic_name: string; reason: string; notes?: string | null
-        }
-        Update: { date?: string; clinic_name?: string; reason?: string; notes?: string | null }
-        Relationships: []
-      }
       school_communications: {
         Row: {
           id: string; student_id: string; original_text: string
@@ -381,34 +356,6 @@ export type Database = {
         }
         Relationships: []
       }
-      community_posts: {
-        Row: {
-          id: string; author_id: string; title: string; body: string
-          image_url: string | null
-          category: 'school_journey' | 'how_i_got_in' | 'resources' | 'ask_community'
-          tags: string[]; anonymous: boolean; upvotes: number
-          moderation_status: 'approved' | 'flagged' | 'removed'; created_at: string
-        }
-        Insert: {
-          id?: string; author_id: string; title: string; body: string
-          image_url?: string | null
-          category: 'school_journey' | 'how_i_got_in' | 'resources' | 'ask_community'
-          tags?: string[]; anonymous?: boolean
-        }
-        Update: {
-          title?: string; body?: string; image_url?: string | null
-          category?: 'school_journey' | 'how_i_got_in' | 'resources' | 'ask_community'
-          tags?: string[]; anonymous?: boolean; upvotes?: number
-          moderation_status?: 'approved' | 'flagged' | 'removed'
-        }
-        Relationships: []
-      }
-      post_saves: {
-        Row:    { user_id: string; post_id: string; saved_at: string }
-        Insert: { user_id: string; post_id: string; saved_at?: string }
-        Update: { saved_at?: string }
-        Relationships: []
-      }
       admission_reports: {
         Row: {
           id: string; author_id: string; anonymous: boolean
@@ -419,9 +366,11 @@ export type Database = {
           standardized_tests: string | null; activities: string | null
           admission_experience: string
           interview_experience: string | null; scholarship_experience: string | null
-          proof_path: string | null; verified: boolean
+          verification_status: VerificationStatus
+          verification_detail: unknown | null
+          verified_at: string | null; ingested_at: string | null
           visibility: 'public' | 'contributors'
-          upvotes: number
+          upvotes: number; downvotes: number
           moderation_status: 'approved' | 'flagged' | 'removed'; created_at: string
         }
         Insert: {
@@ -433,6 +382,9 @@ export type Database = {
           standardized_tests?: string | null; activities?: string | null
           admission_experience: string
           interview_experience?: string | null; scholarship_experience?: string | null
+          verification_status?: VerificationStatus
+          verification_detail?: unknown | null
+          verified_at?: string | null; ingested_at?: string | null
         }
         Update: {
           anonymous?: boolean
@@ -443,14 +395,49 @@ export type Database = {
           standardized_tests?: string | null; activities?: string | null
           admission_experience?: string
           interview_experience?: string | null; scholarship_experience?: string | null
+          verification_status?: VerificationStatus
+          verification_detail?: unknown | null
+          verified_at?: string | null; ingested_at?: string | null
           moderation_status?: 'approved' | 'flagged' | 'removed'
         }
         Relationships: []
       }
-      report_upvotes: {
+      report_proofs: {
+        Row: {
+          id: string; report_id: string; storage_path: string
+          doc_kind: ReportProofKind; mime: string | null; bytes: number | null
+          extracted_text: string | null; created_at: string
+        }
+        Insert: {
+          id?: string; report_id: string; storage_path: string
+          doc_kind: ReportProofKind; mime?: string | null; bytes?: number | null
+          extracted_text?: string | null
+        }
+        Update: { extracted_text?: string | null }
+        Relationships: []
+      }
+      report_votes: {
+        Row:    { user_id: string; report_id: string; value: ReportVoteValue; created_at: string }
+        Insert: { user_id: string; report_id: string; value: ReportVoteValue; created_at?: string }
+        Update: { value?: ReportVoteValue }
+        Relationships: []
+      }
+      report_saves: {
         Row:    { user_id: string; report_id: string; created_at: string }
         Insert: { user_id: string; report_id: string; created_at?: string }
         Update: { created_at?: string }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string; user_id: string; type: NotificationType
+          payload: unknown; read_at: string | null; created_at: string
+        }
+        Insert: {
+          id?: string; user_id: string; type: NotificationType
+          payload?: unknown; read_at?: string | null
+        }
+        Update: { read_at?: string | null }
         Relationships: []
       }
       report_comments: {

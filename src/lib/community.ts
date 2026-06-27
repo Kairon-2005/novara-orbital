@@ -111,13 +111,15 @@ export interface AuthorDisplay {
 /**
  * Anonymous reports stay anonymous for everyone — including in what we render
  * for the author — but the author gets an isOwn marker ("Your report").
+ * Non-anonymous posts show the author's chosen pen name; `display_name` is never
+ * exposed, so a non-anonymous author who set no pen name stays "Anonymous".
  */
 export function displayAuthor(
-  report: { authorId: string; anonymous: boolean; authorName: string },
+  report: { authorId: string; anonymous: boolean; penName: string | null },
   viewerId: string
 ): AuthorDisplay {
   return {
-    name: report.anonymous ? 'Anonymous' : report.authorName,
+    name: report.anonymous ? 'Anonymous' : (report.penName?.trim() || 'Anonymous'),
     isOwn: report.authorId === viewerId,
   }
 }

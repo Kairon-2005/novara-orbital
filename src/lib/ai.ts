@@ -4,6 +4,7 @@
 
 import OpenAI from 'openai'
 import type { StudentProfile, GeneratedRoadmap } from '@/types/roadmap'
+import type { ChatJson } from '@/lib/community/verify'
 import { searchKb } from '@/lib/kb/retrieve'
 import { buildKbContext, formatCitations } from '@/lib/kb/context'
 import { detectKbUniversity, buildGroundedRequirementsPrompt } from '@/lib/kb/university'
@@ -44,6 +45,22 @@ export function parseJson<T>(content: string | null | undefined, label: string):
     }
     throw new Error(`${label}: AI returned invalid JSON`)
   }
+}
+
+// Concrete ChatJson seam used by the community parse/verify domain logic.
+// Lives here (not under lib/community) so that lib/community stays free of any
+// openai import and remains unit-testable with a fake.
+export const chatJson: ChatJson = async (system, user) => {
+  const res = await withTimeout(ai.chat.completions.create({
+    model: 'qwen-plus',
+    response_format: { type: 'json_object' },
+    temperature: 0.1,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+  }))
+  return parseJson<unknown>(res.choices[0].message.content, 'community-chat')
 }
 
 // ── Roadmap Generation ────────────────────────────────────────

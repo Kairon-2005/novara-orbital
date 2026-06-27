@@ -41,7 +41,7 @@ describe('validateReport', () => {
 // ── displayAuthor ─────────────────────────────────────────────
 
 describe('displayAuthor', () => {
-  const report = { authorId: 'u1', anonymous: true, authorName: 'Wei Zhang' }
+  const report = { authorId: 'u1', anonymous: true, penName: 'codewei' }
 
   it('hides the name of an anonymous report from other viewers', () => {
     expect(displayAuthor(report, 'u2')).toEqual({ name: 'Anonymous', isOwn: false })
@@ -51,8 +51,13 @@ describe('displayAuthor', () => {
     expect(displayAuthor(report, 'u1')).toEqual({ name: 'Anonymous', isOwn: true })
   })
 
-  it('shows the real name when the author opted out of anonymity', () => {
-    expect(displayAuthor({ ...report, anonymous: false }, 'u2')).toEqual({ name: 'Wei Zhang', isOwn: false })
+  it('shows the pen name when the author opted out of anonymity', () => {
+    expect(displayAuthor({ ...report, anonymous: false }, 'u2')).toEqual({ name: 'codewei', isOwn: false })
+  })
+
+  it('falls back to Anonymous for a non-anonymous author with no pen name (never leaks display_name)', () => {
+    expect(displayAuthor({ authorId: 'u1', anonymous: false, penName: null }, 'u2'))
+      .toEqual({ name: 'Anonymous', isOwn: false })
   })
 })
 
