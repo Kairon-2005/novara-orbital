@@ -164,6 +164,8 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
   const [events, setEvents]       = useState<CalEvent[]>(initialEvents)
   const [showModal, setShowModal] = useState(false)
   const [filterType, setFilter]   = useState('All')
+  const [calView, setCalView] = useState<'month' | 'week' | 'day'>('month')
+  const [selectedDate, setSelectedDate] = useState(today)
   const [editingEvent, setEditingEvent] = useState<CalEvent | null>(null)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
@@ -263,6 +265,18 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
         <div>
           <div className="font-display font-bold text-[17px] text-[var(--t900)]">Calendar</div>
           <div className="text-[11px] text-[var(--t500)] mt-0.5">{MONTHS[viewMonth]} {viewYear} · {monthCount} event{monthCount !== 1 ? 's' : ''} this month</div>
+        </div>
+        <div className="flex items-center border border-[var(--border)] rounded-[8px] overflow-hidden">
+          {(['month', 'week', 'day'] as const).map(v => (
+            <button key={v} onClick={() => setCalView(v)}
+              className={`px-3 py-1.5 text-[12px] font-semibold capitalize transition ${
+                calView === v
+                  ? 'bg-[var(--blue)] text-white'
+                  : 'bg-white text-[var(--t700)] hover:bg-[var(--bg)]'
+              }`}>
+              {v}
+            </button>
+          ))}
         </div>
         <div className="flex items-center gap-2">
           <a href="/api/calendar/export" download
