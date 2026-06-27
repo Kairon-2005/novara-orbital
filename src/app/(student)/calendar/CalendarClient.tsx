@@ -443,7 +443,8 @@ const dayHours = useMemo(() =>
               </div>
             )}
 
-
+          </div>
+          
           {/* ── Sidebar ─────────────────────────────────────────────────────── */}
           <div className="space-y-4">
 
