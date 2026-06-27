@@ -165,8 +165,23 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
   const [showModal, setShowModal] = useState(false)
   const [filterType, setFilter]   = useState('All')
   const [editingEvent, setEditingEvent] = useState<CalEvent | null>(null)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
   const today = todayStr()
+
+  const reminders = useMemo(() => {
+    return events
+      .filter(ev => {
+        if (dismissedIds.has(ev.id)) return false
+        const diff = Math.ceil((new Date(ev.date).getTime() - new Date(today).getTime()) / 86_400_000)
+        return diff >= 0 && diff <= 30
+      })
+      .map(ev => {
+        const diff = Math.ceil((new Date(ev.date).getTime() - new Date(today).getTime()) / 86_400_000)
+        return { event: ev, daysLeft: diff }
+      })
+      .sort((a, b) => a.daysLeft - b.daysLeft)
+  }, [events, today, dismissedIds])
 
   // Build 42-cell calendar grid
   const cells = useMemo(() => {
