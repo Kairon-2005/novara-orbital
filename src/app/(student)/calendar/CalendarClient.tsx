@@ -165,7 +165,7 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
   const [showModal, setShowModal] = useState(false)
   const [filterType, setFilter]   = useState('All')
   const [calView, setCalView] = useState<'month' | 'week' | 'day'>('month')
-  const [selectedDate, setSelectedDate] = useState(today)
+  const [selectedDate, setSelectedDate] = useState(todayStr())
   const [editingEvent, setEditingEvent] = useState<CalEvent | null>(null)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
@@ -337,55 +337,112 @@ const dayHours = useMemo(() =>
               </div>
             </div>
 
-            {/* Day headers */}
-            <div className="grid gap-[5px] mb-[5px]" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
-              {DAYS.map(d => (
-                <div key={d} className="text-center text-[10px] font-bold text-[var(--t300)] py-[6px] uppercase tracking-[.07em]">{d}</div>
-              ))}
-            </div>
-
-            {/* Day cells */}
-            <div className="grid gap-[5px]" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
-              {cells.map((cell, i) => {
-                const evs    = byDate[cell.dateStr] ?? []
-                const isToday = cell.dateStr === today
-                const isOther = !cell.current
-
-                return (
-                  <div key={i}
-                    onClick={() => cell.current && setShowModal(true)}
-                    className={[
-                      'min-h-[78px] p-[7px_8px] rounded-[8px] flex flex-col gap-[3px] border transition-colors',
-                      isToday ? 'border-[var(--blue)] bg-[var(--blue-50)]'
-                              : isOther ? 'border-[#F3F4F6] bg-[#FAFAFA]'
-                              : 'border-[var(--border)] bg-white hover:border-[var(--blue-100)] cursor-pointer',
-                    ].join(' ')}>
-                    {isToday ? (
-                      <div className="w-[22px] h-[22px] rounded-full bg-[var(--blue)] flex items-center justify-center text-[12px] font-bold text-white">
-                        {cell.day}
-                      </div>
-                    ) : (
-                      <div className={`text-[13px] font-semibold leading-none ${isOther ? 'text-[var(--t300)]' : 'text-[var(--t700)]'}`}>
-                        {cell.day}
-                      </div>
-                    )}
-                    {evs.slice(0, 2).map(ev => {
-                      const s = EVENT_STYLE[ev.type]
-                      return (
-                        <div key={ev.id}
-                          onClick={e => { e.stopPropagation(); setEditingEvent(ev) }}
-                          className="text-[10px] font-medium px-[5px] py-[2px] rounded-[4px] overflow-hidden text-ellipsis whitespace-nowrap leading-[1.5] cursor-pointer hover:opacity-80"
-                          style={{ background: s.bg, color: s.color }}>
-                          {ev.title}
+            {calView !== 'month' && (
+              <div className="border border-[var(--border)] rounded-[10px] overflow-hidden">
+                <div className="grid border-b border-[var(--border)]"
+                  style={{ gridTemplateColumns: calView === 'week' ? '60px repeat(7, 1fr)' : '60px 1fr' }}>
+                  <div className="border-r border-[var(--border)] bg-[var(--bg)]" />
+                  {(calView === 'week' ? weekDays : [selectedDate]).map(dateStr => {
+                    const isToday = dateStr === today
+                    const d = new Date(dateStr)
+                    return (
+                      <div key={dateStr}
+                        className={`py-2 text-center border-r border-[var(--border)] last:border-r-0 ${isToday ? 'bg-[var(--blue-50)]' : 'bg-[var(--bg)]'}`}>
+                        <div className="text-[10px] font-bold text-[var(--t300)] uppercase">
+                          {d.toLocaleDateString('en-SG', { weekday: 'short' })}
                         </div>
-                      )
-                    })}
-                    {evs.length > 2 && <div className="text-[10px] text-[var(--t300)] font-medium">+{evs.length - 2} more</div>}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+                        <div className={`text-[14px] font-bold mt-0.5 ${isToday ? 'text-[var(--blue)]' : 'text-[var(--t700)]'}`}>
+                          {d.getDate()}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="overflow-y-auto max-h-[600px]">
+                  {dayHours.map(hour => (
+                    <div key={hour} className="grid border-b border-[var(--border)] last:border-b-0"
+                      style={{ gridTemplateColumns: calView === 'week' ? '60px repeat(7, 1fr)' : '60px 1fr' }}>
+                      <div className="px-2 py-1 text-[10px] text-[var(--t300)] border-r border-[var(--border)] bg-[var(--bg)] flex items-start pt-1">
+                        {hour}
+                      </div>
+                      {(calView === 'week' ? weekDays : [selectedDate]).map(dateStr => {
+                        const evs = byDate[dateStr] ?? []
+                        return (
+                          <div key={dateStr}
+                            onClick={() => setShowModal(true)}
+                            className="min-h-[48px] border-r border-[var(--border)] last:border-r-0 p-[2px] cursor-pointer hover:bg-[var(--blue-50)] transition-colors">
+                            {evs.map(ev => {
+                              const s = EVENT_STYLE[ev.type]
+                              return (
+                                <div key={ev.id}
+                                  onClick={e => { e.stopPropagation(); setEditingEvent(ev) }}
+                                  className="text-[10px] font-medium px-[4px] py-[2px] rounded-[4px] mb-[2px] cursor-pointer hover:opacity-80 truncate"
+                                  style={{ background: s.bg, color: s.color }}>
+                                  {ev.title}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {calView === 'month' && (
+              <div>
+                {/* Day headers */}
+                <div className="grid gap-[5px] mb-[5px]" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {DAYS.map(d => (
+                    <div key={d} className="text-center text-[10px] font-bold text-[var(--t300)] py-[6px] uppercase tracking-[.07em]">{d}</div>
+                  ))}
+                </div>
+                {/* Day cells */}
+                <div className="grid gap-[5px]" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {cells.map((cell, i) => {
+                    const evs    = byDate[cell.dateStr] ?? []
+                    const isToday = cell.dateStr === today
+                    const isOther = !cell.current
+
+                    return (
+                      <div key={i}
+                        onClick={() => cell.current && setShowModal(true)}
+                        className={[
+                          'min-h-[78px] p-[7px_8px] rounded-[8px] flex flex-col gap-[3px] border transition-colors',
+                          isToday ? 'border-[var(--blue)] bg-[var(--blue-50)]'
+                                  : isOther ? 'border-[#F3F4F6] bg-[#FAFAFA]'
+                                  : 'border-[var(--border)] bg-white hover:border-[var(--blue-100)] cursor-pointer',
+                        ].join(' ')}>
+                        {isToday ? (
+                          <div className="w-[22px] h-[22px] rounded-full bg-[var(--blue)] flex items-center justify-center text-[12px] font-bold text-white">
+                            {cell.day}
+                          </div>
+                        ) : (
+                          <div className={`text-[13px] font-semibold leading-none ${isOther ? 'text-[var(--t300)]' : 'text-[var(--t700)]'}`}>
+                            {cell.day}
+                          </div>
+                        )}
+                        {evs.slice(0, 2).map(ev => {
+                          const s = EVENT_STYLE[ev.type]
+                          return (
+                            <div key={ev.id}
+                              onClick={e => { e.stopPropagation(); setEditingEvent(ev) }}
+                              className="text-[10px] font-medium px-[5px] py-[2px] rounded-[4px] overflow-hidden text-ellipsis whitespace-nowrap leading-[1.5] cursor-pointer hover:opacity-80"
+                              style={{ background: s.bg, color: s.color }}>
+                              {ev.title}
+                            </div>
+                          )
+                        })}
+                        {evs.length > 2 && <div className="text-[10px] text-[var(--t300)] font-medium">+{evs.length - 2} more</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
 
           {/* ── Sidebar ─────────────────────────────────────────────────────── */}
           <div className="space-y-4">
