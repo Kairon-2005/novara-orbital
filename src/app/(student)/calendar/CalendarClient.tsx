@@ -183,6 +183,25 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
       .sort((a, b) => a.daysLeft - b.daysLeft)
   }, [events, today, dismissedIds])
 
+  // Mark reminders as sent in DB
+  useMemo(() => {
+    reminders.forEach(({ event, daysLeft }) => {
+      const updates: Record<string, boolean> = {}
+      if (daysLeft <= 30) updates.reminder_sent_30d = true
+      if (daysLeft <= 7)  updates.reminder_sent_7d  = true
+      if (daysLeft <= 3)  updates.reminder_sent_3d  = true
+      if (daysLeft <= 1)  updates.reminder_sent_1d  = true
+
+      if (Object.keys(updates).length > 0) {
+        supabase
+          .from('calendar_events')
+          .update(updates)
+          .eq('id', event.id)
+          .then()
+      }
+    })
+  }, [reminders])
+
   // Build 42-cell calendar grid
   const cells = useMemo(() => {
     const first   = firstDayISO(viewYear, viewMonth)
