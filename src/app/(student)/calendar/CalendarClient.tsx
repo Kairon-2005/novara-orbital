@@ -258,6 +258,11 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
         </div>
       </div>
 
+      <ReminderBanner
+        reminders={reminders}
+        onDismiss={id => setDismissedIds(prev => new Set(prev).add(id))}
+      />
+
       <div className="p-[28px_36px] flex-1">
         <div className="grid gap-6 grid-cols-1 items-start lg:grid-cols-[1fr_300px]">
 
