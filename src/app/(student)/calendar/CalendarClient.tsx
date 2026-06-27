@@ -226,6 +226,22 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
     return result
   }, [viewYear, viewMonth])
 
+  const weekDays = useMemo(() => {
+  const date = new Date(selectedDate)
+  const day = (date.getDay() + 6) % 7 // Monday = 0
+  const monday = new Date(date)
+  monday.setDate(date.getDate() - day)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return ymd(d.getFullYear(), d.getMonth(), d.getDate())
+  })
+}, [selectedDate])
+
+const dayHours = useMemo(() =>
+  Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`),
+[])
+
   const byDate = useMemo(() => {
     const m: Record<string, CalEvent[]> = {}
     events.forEach(ev => { (m[ev.date] ??= []).push(ev) })
