@@ -3,19 +3,30 @@
 import { useMemo, useState } from 'react'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
+import CasesTab, { VerifiedBadge } from './CasesTab'
+import NotificationBell from './NotificationBell'
+import ShareButton from './ShareButton'
 import {
   validateReport, displayAuthor, formatBgLine, applyReportFilters,
   normalizeParsedDraft, REPORT_ROUTES, REPORT_RESULTS,
 } from '@/lib/community'
 import type { ReportDraft, ReportFilters } from '@/lib/community'
-import type { ReportLevel, ReportRoute, ReportResult } from '@/types/database'
+import { applyVote, type MyVote } from '@/lib/community/vote'
+import type { Database, ReportLevel, ReportRoute, ReportResult, VerificationStatus } from '@/types/database'
+
+type ReportRow = Database['public']['Tables']['admission_reports']['Row']
+
+interface Verdict {
+  status: VerificationStatus
+  conflicts: { field: string; claimed: string; found: string }[]
+}
 
 // ── View models (built by the server page) ────────────────────
 
 export interface ReportRowView {
   id: string
   authorId: string
-  authorName: string
+  penName: string | null
   anonymous: boolean
   level: ReportLevel
   institution: string
@@ -31,9 +42,11 @@ export interface ReportRowView {
   admissionExperience: string
   interviewExperience: string | null
   scholarshipExperience: string | null
-  verified: boolean
+  verificationStatus: VerificationStatus
   upvotes: number
-  upvotedByMe: boolean
+  downvotes: number
+  myVote: MyVote
+  savedByMe: boolean
   commentCount: number
   createdAt: string
 }
@@ -41,7 +54,7 @@ export interface ReportRowView {
 interface CommentView {
   id: string
   authorId: string
-  authorName: string
+  penName: string | null
   anonymous: boolean
   body: string
   createdAt: string
@@ -109,12 +122,20 @@ export default function CommunityClient({ initialReports, userId }: Props) {
   const [filters, setFilters] = useState<ReportFilters>({})
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [tab, setTab] = useState<'feed' | 'cases' | 'saved' | 'mine'>('feed')
 
   // Submit wizard state
   const [draft, setDraft] = useState<ReportDraft>(EMPTY_DRAFT)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [parsing, setParsing] = useState(false)
+  // Uploaded proof(s): auto-fill the form AND get stored privately for the
+  // server-side AI cross-check. Kept in client state until the case is published.
+  const [proofFiles, setProofFiles] = useState<File[]>([])
+  const [verdict, setVerdict] = useState<Verdict | null>(null)
+  const [penNameInput, setPenNameInput] = useState('')
+  // Set when the viewer taps a pen name to browse that author's public cases.
+  const [viewingPenName, setViewingPenName] = useState<string | null>(null)
 
   // Comments state (loaded when a report is opened)
   const [comments, setComments] = useState<CommentView[]>([])
@@ -141,14 +162,14 @@ export default function CommunityClient({ initialReports, userId }: Props) {
 
     const namedIds = Array.from(new Set((rows ?? []).filter((c) => !c.anonymous).map((c) => c.author_id)))
     const { data: profiles } = namedIds.length > 0
-      ? await supabase.from('profiles').select('id, display_name').in('id', namedIds)
-      : { data: [] as { id: string; display_name: string }[] }
-    const nameById = new Map((profiles ?? []).map((p) => [p.id, p.display_name]))
+      ? await supabase.from('profiles').select('id, pen_name').in('id', namedIds)
+      : { data: [] as { id: string; pen_name: string | null }[] }
+    const nameById = new Map((profiles ?? []).map((p) => [p.id, p.pen_name]))
 
     setComments((rows ?? []).map((c) => ({
       id: c.id,
       authorId: c.author_id,
-      authorName: nameById.get(c.author_id) ?? 'Anonymous',
+      penName: nameById.get(c.author_id) ?? null,
       anonymous: c.anonymous,
       body: c.body,
       createdAt: c.created_at,
@@ -156,25 +177,43 @@ export default function CommunityClient({ initialReports, userId }: Props) {
     setCommentsLoading(false)
   }
 
-  async function toggleUpvote(report: ReportRowView) {
-    const next = !report.upvotedByMe
-    setReports((rs) => rs.map((r) =>
-      r.id === report.id ? { ...r, upvotedByMe: next, upvotes: r.upvotes + (next ? 1 : -1) } : r
-    ))
-    const { error } = next
-      ? await supabase.from('report_upvotes').insert({ user_id: userId, report_id: report.id })
-      : await supabase.from('report_upvotes').delete().eq('user_id', userId).eq('report_id', report.id)
-    if (error) {
+  async function vote(report: ReportRowView, clicked: 1 | -1) {
+    const next = applyVote({ myVote: report.myVote, upvotes: report.upvotes, downvotes: report.downvotes }, clicked)
+    setReports((rs) => rs.map((r) => r.id === report.id ? { ...r, ...next } : r))
+    let ok = false
+    try {
+      const res = await fetch(`/api/community/reports/${report.id}/vote`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ value: next.myVote }),
+      })
+      ok = res.ok
+    } catch { ok = false }
+    if (!ok) {
       // Roll back the optimistic update.
       setReports((rs) => rs.map((r) =>
-        r.id === report.id ? { ...r, upvotedByMe: report.upvotedByMe, upvotes: report.upvotes } : r
+        r.id === report.id ? { ...r, myVote: report.myVote, upvotes: report.upvotes, downvotes: report.downvotes } : r
       ))
-      toast({ title: 'Could not update your upvote', variant: 'error' })
+      toast({ title: 'Could not record your vote', variant: 'error' })
+    }
+  }
+
+  async function toggleSave(report: ReportRowView) {
+    const next = !report.savedByMe
+    setReports((rs) => rs.map((r) => r.id === report.id ? { ...r, savedByMe: next } : r))
+    const { error } = next
+      ? await supabase.from('report_saves').insert({ user_id: userId, report_id: report.id })
+      : await supabase.from('report_saves').delete().eq('user_id', userId).eq('report_id', report.id)
+    if (error) {
+      setReports((rs) => rs.map((r) => r.id === report.id ? { ...r, savedByMe: report.savedByMe } : r))
+      toast({ title: 'Could not update your saves', variant: 'error' })
     }
   }
 
   async function parseMaterial(file: File) {
     setParsing(true)
+    // Keep the file as proof regardless of parse success — it backs verification.
+    setProofFiles((fs) => [...fs, file])
     try {
       const form = new FormData()
       form.append('file', file)
@@ -183,12 +222,16 @@ export default function CommunityClient({ initialReports, userId }: Props) {
       if (!res.ok) throw new Error(data.error)
       const prefill = normalizeParsedDraft(data.draft)
       setDraft((d) => ({ ...d, ...prefill }))
-      toast({ title: 'Form pre-filled from your document', description: 'Please review every field before publishing.' })
+      toast({ title: 'Form pre-filled from your document', description: 'Review every field — this document also verifies your case.' })
     } catch (e) {
-      toast({ title: 'Could not parse the file', description: e instanceof Error ? e.message : undefined, variant: 'error' })
+      toast({ title: 'Could not auto-fill from the file', description: e instanceof Error ? e.message : undefined, variant: 'error' })
     } finally {
       setParsing(false)
     }
+  }
+
+  function removeProof(index: number) {
+    setProofFiles((fs) => fs.filter((_, i) => i !== index))
   }
 
   async function submitReport() {
@@ -196,39 +239,46 @@ export default function CommunityClient({ initialReports, userId }: Props) {
     setErrors(result.errors as Record<string, string>)
     if (!result.valid) return
 
-    setSaving(true)
-    const { data, error } = await supabase
-      .from('admission_reports')
-      .insert({
-        author_id: userId,
-        anonymous: draft.anonymous ?? true,
-        level: draft.level,
-        institution: draft.institution.trim(),
-        programme: draft.programme?.trim() || null,
-        route: draft.route,
-        result: draft.result,
-        apply_year: draft.applyYear,
-        scholarship_name: draft.scholarshipName?.trim() || null,
-        grades: draft.grades?.trim() || null,
-        english_test: draft.englishTest?.trim() || null,
-        standardized_tests: draft.standardizedTests?.trim() || null,
-        activities: draft.activities?.trim() || null,
-        admission_experience: draft.admissionExperience.trim(),
-        interview_experience: draft.interviewExperience?.trim() || null,
-        scholarship_experience: draft.scholarshipExperience?.trim() || null,
-      })
-      .select()
-      .single()
-    setSaving(false)
+    // Posting non-anonymously requires a pen name (display_name is never shown).
+    if (draft.anonymous === false) {
+      const pen = penNameInput.trim()
+      if (!pen) {
+        setErrors((e) => ({ ...e, penName: 'Choose a pen name to post non-anonymously.' }))
+        return
+      }
+      const { error: penErr } = await supabase.from('profiles').update({ pen_name: pen }).eq('id', userId)
+      if (penErr) {
+        toast({ title: 'Could not save your pen name', description: 'It may be taken — try another.', variant: 'error' })
+        return
+      }
+    }
 
-    if (error || !data) {
-      toast({ title: 'Failed to publish', description: error?.message, variant: 'error' })
+    // Server-side creation: the report, its private proof(s), and the AI
+    // cross-check all happen behind /api/community/reports so verification
+    // (and the wiki gate) cannot be bypassed from the client.
+    setSaving(true)
+    const form = new FormData()
+    form.append('draft', JSON.stringify(draft))
+    for (const f of proofFiles) form.append('proofs', f)
+    form.append('proofKinds', JSON.stringify(proofFiles.map(() => 'offer_letter')))
+
+    let payload: { report?: ReportRow; verdict?: Verdict; error?: string }
+    try {
+      const res = await fetch('/api/community/reports', { method: 'POST', body: form })
+      payload = await res.json()
+      if (!res.ok || !payload.report) throw new Error(payload.error ?? 'Failed to publish')
+    } catch (e) {
+      setSaving(false)
+      toast({ title: 'Failed to publish', description: e instanceof Error ? e.message : undefined, variant: 'error' })
       return
     }
+    setSaving(false)
+
+    const data = payload.report
     setReports((rs) => [{
       id: data.id,
       authorId: userId,
-      authorName: 'Anonymous',
+      penName: null,
       anonymous: data.anonymous,
       level: data.level,
       institution: data.institution,
@@ -244,23 +294,36 @@ export default function CommunityClient({ initialReports, userId }: Props) {
       admissionExperience: data.admission_experience,
       interviewExperience: data.interview_experience,
       scholarshipExperience: data.scholarship_experience,
-      verified: data.verified,
+      verificationStatus: data.verification_status,
       upvotes: 0,
-      upvotedByMe: false,
+      downvotes: 0,
+      myVote: 0,
+      savedByMe: false,
       commentCount: 0,
       createdAt: data.created_at,
     }, ...rs])
+
+    const v = payload.verdict ?? { status: data.verification_status, conflicts: [] }
+    setVerdict(v)
+    if (v.status === 'mismatch') {
+      // Keep the form open so the author can see the conflicts and correct them.
+      toast({
+        title: '⚠️ Evidence mismatch',
+        description: 'Your proof contradicts some fields — see the details above.',
+        variant: 'error',
+      })
+      return
+    }
     setShowForm(false)
     setDraft(EMPTY_DRAFT)
+    setProofFiles([])
     setErrors({})
-    toast({ title: 'Report published 🎉', description: draft.anonymous ? 'Posted anonymously.' : undefined })
-    // Fire-and-forget: push the anonymized report into the knowledge base so
-    // the AI can cite community outcomes. Failure is non-blocking by design.
-    fetch('/api/community/reports/ingest', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ reportId: data.id }),
-    }).catch(() => { /* KB ingest is best-effort */ })
+    toast({
+      title: v.status === 'verified' ? 'Report published & verified ✅' : 'Report published 🎉',
+      description: v.status === 'verified'
+        ? 'Your proof checks out — your case is now in the wiki.'
+        : (proofFiles.length === 0 ? 'Add a proof later to get a verified badge.' : undefined),
+    })
   }
 
   async function submitComment() {
@@ -277,7 +340,7 @@ export default function CommunityClient({ initialReports, userId }: Props) {
       return
     }
     setComments((cs) => [...cs, {
-      id: data.id, authorId: userId, authorName: 'Anonymous',
+      id: data.id, authorId: userId, penName: null,
       anonymous: data.anonymous, body: data.body, createdAt: data.created_at,
     }])
     setReports((rs) => rs.map((r) => r.id === active.id ? { ...r, commentCount: r.commentCount + 1 } : r))
@@ -302,7 +365,13 @@ export default function CommunityClient({ initialReports, userId }: Props) {
             {active.scholarshipName && (
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#FDF6B2] text-[#8E4B10]">🏅 {active.scholarshipName}</span>
             )}
-            <span className="text-[11px] text-[var(--t300)] ml-auto">{author.name}{author.isOwn && ' · Your report'} · {relativeDate(active.createdAt)}</span>
+            <VerifiedBadge status={active.verificationStatus} />
+            <span className="text-[11px] text-[var(--t300)] ml-auto">
+              {!active.anonymous && !author.isOwn && author.name !== 'Anonymous' ? (
+                <button onClick={() => setViewingPenName(author.name)} className="text-[var(--blue)] font-semibold hover:underline">{author.name}</button>
+              ) : author.name}
+              {author.isOwn && ' · Your report'} · {relativeDate(active.createdAt)}
+            </span>
           </div>
 
           <h1 className="font-display font-bold text-[20px] text-[var(--t900)] mt-2">
@@ -325,14 +394,27 @@ export default function CommunityClient({ initialReports, userId }: Props) {
             </section>
           ) : null)}
 
-          <div className="flex items-center gap-3 mt-6 pt-4 border-t border-[var(--border)]">
+          <div className="flex items-center gap-2 mt-6 pt-4 border-t border-[var(--border)]">
             <button
-              onClick={() => toggleUpvote(active)}
-              className={`text-[13px] font-semibold px-3 py-1.5 rounded-lg border transition-colors ${active.upvotedByMe ? 'bg-[var(--blue-50)] border-[var(--blue)] text-[var(--blue)]' : 'border-[var(--border)] text-[var(--t500)] hover:border-[var(--blue)]'}`}
+              onClick={() => vote(active, 1)}
+              className={`text-[13px] font-semibold px-3 py-1.5 rounded-lg border transition-colors ${active.myVote === 1 ? 'bg-[var(--blue-50)] border-[var(--blue)] text-[var(--blue)]' : 'border-[var(--border)] text-[var(--t500)] hover:border-[var(--blue)]'}`}
             >
-              ▲ Helpful · {active.upvotes}
+              ▲ 顶 · {active.upvotes}
             </button>
-            <span className="text-[12px] text-[var(--t300)]">{comments.length} comments</span>
+            <button
+              onClick={() => vote(active, -1)}
+              className={`text-[13px] font-semibold px-3 py-1.5 rounded-lg border transition-colors ${active.myVote === -1 ? 'bg-[#FDF2F2] border-[#E02424] text-[#E02424]' : 'border-[var(--border)] text-[var(--t500)] hover:border-[#E02424]'}`}
+            >
+              ▼ 踩 · {active.downvotes}
+            </button>
+            <button
+              onClick={() => toggleSave(active)}
+              className={`text-[13px] font-semibold px-3 py-1.5 rounded-lg border transition-colors ${active.savedByMe ? 'bg-[var(--blue-50)] border-[var(--blue)] text-[var(--blue)]' : 'border-[var(--border)] text-[var(--t500)] hover:border-[var(--blue)]'}`}
+            >
+              {active.savedByMe ? '🔖 已收藏' : '🔖 收藏'}
+            </button>
+            {active.verificationStatus === 'verified' && <ShareButton path={`/community/case/${active.id}`} />}
+            <span className="text-[12px] text-[var(--t300)] ml-1">{comments.length} comments</span>
           </div>
         </div>
 
@@ -395,16 +477,17 @@ export default function CommunityClient({ initialReports, userId }: Props) {
           Structured reports help juniors calibrate. <span className="font-semibold">Posted anonymously by default</span> — your name is never shown unless you opt in.
         </p>
 
-        {/* PDF auto-fill: parsed in memory, never stored; user reviews before publishing */}
-        <label className="card flex items-center justify-between gap-3 p-4 mb-4 cursor-pointer hover:border-[var(--blue)] transition-colors">
+        {/* Proof upload: auto-fills the form AND backs the AI verification.
+            Stored privately (owner-only); never shown to other users. */}
+        <label className="card flex items-center justify-between gap-3 p-4 mb-2 cursor-pointer hover:border-[var(--blue)] transition-colors">
           <div>
-            <div className="text-[13px] font-semibold text-[var(--t900)]">⚡ Auto-fill from a document</div>
+            <div className="text-[13px] font-semibold text-[var(--t900)]">⚡ Auto-fill &amp; verify from your proof</div>
             <div className="text-[12px] text-[var(--t300)] mt-0.5">
-              Upload your offer letter / application summary (PDF or image) — we extract the fields, you review. The file itself is never stored or shown to anyone.
+              Upload your offer letter / transcript (PDF or image). We auto-fill the form and privately cross-check it to verify your case — verified cases get a badge and feed the wiki. Proof is stored privately and never shown to other users.
             </div>
           </div>
           <span className="px-3 py-1.5 border border-[var(--border)] rounded-lg text-[12px] font-semibold text-[var(--t500)] whitespace-nowrap">
-            {parsing ? 'Parsing…' : 'Choose file'}
+            {parsing ? 'Reading…' : 'Choose file'}
           </span>
           <input
             type="file"
@@ -418,6 +501,17 @@ export default function CommunityClient({ initialReports, userId }: Props) {
             }}
           />
         </label>
+        {proofFiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {proofFiles.map((f, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#F3FAF7] text-[#057A55] rounded-lg text-[12px]">
+                📎 {f.name}
+                <button type="button" onClick={() => removeProof(i)} className="text-[#057A55] hover:opacity-70" aria-label="Remove proof">×</button>
+              </span>
+            ))}
+          </div>
+        )}
+        {!proofFiles.length && <div className="mb-4" />}
 
         <div className="card p-5 mb-4">
           <h2 className="font-display font-semibold text-[14px] text-[var(--t900)] mb-3">1 · Outcome</h2>
@@ -505,34 +599,72 @@ export default function CommunityClient({ initialReports, userId }: Props) {
           <textarea value={draft.scholarshipExperience} onChange={(e) => set({ scholarshipExperience: e.target.value })} rows={3} placeholder="Application, interview, terms…" className={inputCls} />
         </div>
 
-        <div className="card p-5 flex items-center justify-between">
-          <label className="flex items-center gap-2 text-[13px] text-[var(--t500)]">
-            <input type="checkbox" checked={draft.anonymous} onChange={(e) => set({ anonymous: e.target.checked })} />
-            Post anonymously <span className="text-[var(--t300)]">(recommended — default)</span>
-          </label>
-          <button
-            onClick={submitReport}
-            disabled={saving}
-            className="px-5 py-2 bg-[var(--blue)] text-white text-[13px] font-semibold rounded-lg disabled:opacity-50"
+        {verdict && (
+          <div
+            className="card p-4 mb-4"
+            style={{
+              background: verdict.status === 'verified' ? '#F3FAF7' : verdict.status === 'mismatch' ? '#FDF2F2' : '#FFFBEB',
+            }}
           >
-            {saving ? 'Publishing…' : 'Publish report'}
-          </button>
+            <div className="text-[13px] font-semibold" style={{ color: verdict.status === 'verified' ? '#057A55' : verdict.status === 'mismatch' ? '#E02424' : '#B45309' }}>
+              {verdict.status === 'verified' && '✅ Verified — your proof supports your claim.'}
+              {verdict.status === 'mismatch' && '⚠️ Evidence mismatch — your proof contradicts some fields:'}
+              {(verdict.status === 'unverified' || verdict.status === 'pending') && '⏳ Not verified — add an offer letter / transcript to earn a verified badge.'}
+            </div>
+            {verdict.status === 'mismatch' && verdict.conflicts.length > 0 && (
+              <ul className="mt-2 text-[12px] text-[var(--t500)] list-disc pl-5">
+                {verdict.conflicts.map((c, i) => (
+                  <li key={i}><span className="font-semibold">{c.field}</span>: you wrote “{c.claimed}”, proof shows “{c.found}”.</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <div className="card p-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <label className="flex items-center gap-2 text-[13px] text-[var(--t500)]">
+              <input type="checkbox" checked={draft.anonymous} onChange={(e) => set({ anonymous: e.target.checked })} />
+              Post anonymously <span className="text-[var(--t300)]">(recommended — default)</span>
+            </label>
+            <button
+              onClick={submitReport}
+              disabled={saving}
+              className="px-5 py-2 bg-[var(--blue)] text-white text-[13px] font-semibold rounded-lg disabled:opacity-50"
+            >
+              {saving ? 'Publishing…' : 'Publish report'}
+            </button>
+          </div>
+          {draft.anonymous === false && (
+            <div className="mt-3">
+              <label className={labelCls}>Pen name (shown instead of your real name)</label>
+              <input
+                value={penNameInput}
+                onChange={(e) => setPenNameInput(e.target.value)}
+                placeholder="e.g. codewei"
+                className={inputCls}
+              />
+              {err('penName')}
+              <p className="text-[11px] text-[var(--t300)] mt-1">Your real name is never shown — only this pen name.</p>
+            </div>
+          )}
         </div>
       </div>
     )
   }
 
-  // ── Render: feed ────────────────────────────────────────────
+  // ── Render: feed / cases ────────────────────────────────────
 
-  return (
-    <div className="page-content max-w-[860px]">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="font-display font-bold text-[22px] text-[var(--t900)]">Admission Reports</h1>
-          <p className="text-[13px] text-[var(--t500)] mt-1">
-            Real backgrounds, real outcomes — secondary school &amp; undergraduate only. Anonymous by default.
-          </p>
-        </div>
+  const headerBlock = (
+    <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div>
+        <h1 className="font-display font-bold text-[22px] text-[var(--t900)]">Admission Reports</h1>
+        <p className="text-[13px] text-[var(--t500)] mt-1">
+          Real backgrounds, real outcomes — secondary school &amp; undergraduate only. Anonymous by default.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <NotificationBell />
         <button
           onClick={() => setShowForm(true)}
           className="px-4 py-2 bg-[var(--blue)] text-white text-[13px] font-semibold rounded-lg whitespace-nowrap"
@@ -540,6 +672,50 @@ export default function CommunityClient({ initialReports, userId }: Props) {
           + Share your result
         </button>
       </div>
+    </div>
+  )
+
+  const TAB_LABEL = { feed: '经验 Feed', cases: '案例库 Cases', saved: '收藏 Saved', mine: '我的记录 Mine' } as const
+  const tabBar = (
+    <div className="flex gap-5 mt-4 border-b border-[var(--border)]">
+      {(['feed', 'cases', 'saved', 'mine'] as const).map((t) => (
+        <button
+          key={t}
+          onClick={() => setTab(t)}
+          className={`pb-2 -mb-px text-[13px] font-semibold ${tab === t ? 'text-[var(--blue)] border-b-2 border-[var(--blue)]' : 'text-[var(--t300)]'}`}
+        >
+          {TAB_LABEL[t]}
+        </button>
+      ))}
+    </div>
+  )
+
+  // Another author's public (non-anonymous) cases — opened by tapping a pen name.
+  if (viewingPenName) {
+    return (
+      <div className="page-content max-w-[860px]">
+        {headerBlock}
+        <button onClick={() => setViewingPenName(null)} className="text-[13px] text-[var(--blue)] font-semibold mt-4">← Back</button>
+        <h2 className="font-display font-bold text-[18px] text-[var(--t900)] mt-2">{viewingPenName}’s public cases</h2>
+        <CasesTab penName={viewingPenName} />
+      </div>
+    )
+  }
+
+  if (tab === 'cases' || tab === 'saved' || tab === 'mine') {
+    return (
+      <div className="page-content max-w-[860px]">
+        {headerBlock}
+        {tabBar}
+        <CasesTab savedOnly={tab === 'saved'} mine={tab === 'mine'} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="page-content max-w-[860px]">
+      {headerBlock}
+      {tabBar}
 
       {/* Filter bar */}
       <div className="card p-3 mt-4 mb-4 flex flex-wrap gap-2 items-center">
@@ -582,6 +758,7 @@ export default function CommunityClient({ initialReports, userId }: Props) {
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-bold px-2 py-0.5 rounded" style={{ background: rc.bg, color: rc.color }}>{rc.label}</span>
               <span className="text-[11px] font-semibold text-[var(--t300)]">{LEVEL_LABEL[r.level]} · {r.applyYear}</span>
+              <VerifiedBadge status={r.verificationStatus} />
               {r.scholarshipName && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#FDF6B2] text-[#8E4B10]">🏅 Scholarship</span>}
               <span className="text-[11px] text-[var(--t300)] ml-auto">{author.name}{author.isOwn && ' · Your report'} · {relativeDate(r.createdAt)}</span>
             </div>
@@ -591,7 +768,8 @@ export default function CommunityClient({ initialReports, userId }: Props) {
             <div className="text-[12px] text-[var(--t500)] mt-0.5">{formatBgLine(r)}</div>
             <p className="text-[12px] text-[var(--t500)] mt-1.5 line-clamp-2">{r.admissionExperience}</p>
             <div className="flex items-center gap-3 mt-2 text-[11px] text-[var(--t300)]">
-              <span className={r.upvotedByMe ? 'text-[var(--blue)] font-semibold' : ''}>▲ {r.upvotes}</span>
+              <span className={r.myVote === 1 ? 'text-[var(--blue)] font-semibold' : ''}>▲ {r.upvotes}</span>
+              <span className={r.myVote === -1 ? 'text-[#E02424] font-semibold' : ''}>▼ {r.downvotes}</span>
               <span>💬 {r.commentCount}</span>
               {r.interviewExperience && <span>· interview notes</span>}
               {r.scholarshipExperience && <span>· scholarship notes</span>}

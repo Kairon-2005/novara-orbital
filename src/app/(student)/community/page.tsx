@@ -10,15 +10,16 @@ export default async function CommunityPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return <p className="p-10 text-red-500">Not authenticated.</p>
 
-  const [{ data: reports }, { data: myUpvotes }, { data: commentRows }] = await Promise.all([
+  const [{ data: reports }, { data: myUpvotes }, { data: commentRows }, { data: mySaves }] = await Promise.all([
     supabase
       .from('admission_reports')
       .select('*')
       .eq('moderation_status', 'approved')
       .order('created_at', { ascending: false })
       .limit(200),
-    supabase.from('report_upvotes').select('report_id').eq('user_id', user.id),
+    supabase.from('report_votes').select('report_id, value').eq('user_id', user.id),
     supabase.from('report_comments').select('report_id').eq('moderation_status', 'approved'),
+    supabase.from('report_saves').select('report_id').eq('user_id', user.id),
   ])
 
   // Resolve display names only for authors who opted out of anonymity.
@@ -26,11 +27,12 @@ export default async function CommunityPage() {
     (reports ?? []).filter((r) => !r.anonymous).map((r) => r.author_id)
   ))
   const { data: authorProfiles } = namedAuthorIds.length > 0
-    ? await supabase.from('profiles').select('id, display_name').in('id', namedAuthorIds)
-    : { data: [] as { id: string; display_name: string }[] }
-  const nameById = new Map((authorProfiles ?? []).map((p) => [p.id, p.display_name]))
+    ? await supabase.from('profiles').select('id, pen_name').in('id', namedAuthorIds)
+    : { data: [] as { id: string; pen_name: string | null }[] }
+  const nameById = new Map((authorProfiles ?? []).map((p) => [p.id, p.pen_name]))
 
-  const upvoted = new Set((myUpvotes ?? []).map((u) => u.report_id))
+  const myVoteById = new Map((myUpvotes ?? []).map((u) => [u.report_id, u.value]))
+  const saved = new Set((mySaves ?? []).map((s) => s.report_id))
   const commentCount = new Map<string, number>()
   for (const c of commentRows ?? []) {
     commentCount.set(c.report_id, (commentCount.get(c.report_id) ?? 0) + 1)
@@ -39,7 +41,7 @@ export default async function CommunityPage() {
   const rows: ReportRowView[] = (reports ?? []).map((r) => ({
     id: r.id,
     authorId: r.author_id,
-    authorName: nameById.get(r.author_id) ?? 'Anonymous',
+    penName: nameById.get(r.author_id) ?? null,
     anonymous: r.anonymous,
     level: r.level,
     institution: r.institution,
@@ -55,9 +57,11 @@ export default async function CommunityPage() {
     admissionExperience: r.admission_experience,
     interviewExperience: r.interview_experience,
     scholarshipExperience: r.scholarship_experience,
-    verified: r.verified,
+    verificationStatus: r.verification_status,
     upvotes: r.upvotes,
-    upvotedByMe: upvoted.has(r.id),
+    downvotes: r.downvotes,
+    myVote: myVoteById.get(r.id) ?? 0,
+    savedByMe: saved.has(r.id),
     commentCount: commentCount.get(r.id) ?? 0,
     createdAt: r.created_at,
   }))
