@@ -10,7 +10,8 @@ const nextConfig = {
   // Next.js 14 uses the experimental key; the top-level `serverExternalPackages`
   // is Next 15+ and is silently ignored here.
   experimental: {
-    serverComponentsExternalPackages: ['pdf-parse', 'tesseract.js'],
+    // Native/heavy deps loaded at runtime (require), never webpack-bundled.
+    serverComponentsExternalPackages: ['pdf-parse', 'tesseract.js', 'impit'],
   },
 }
 

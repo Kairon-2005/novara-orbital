@@ -327,6 +327,50 @@ export async function fetchApplicationPlan(
   return { ...plan, verified: false }
 }
 
+/**
+ * Build an application plan grounded STRICTLY in user-provided official-page content
+ * (link fetch / paste / upload). Used when scrapers can't reach the page. Records the
+ * source URL and marks the plan verified when one is provided.
+ */
+export async function fetchApplicationPlanFromSource(
+  universityName: string,
+  programme: string,
+  enrollmentYear: number,
+  sourceText: string,
+  sourceUrl?: string
+): Promise<import('@/lib/university-plan').ApplicationPlan> {
+  const { normalizeApplicationPlan } = await import('@/lib/university-plan')
+
+  const system = `You build an application plan for a Chinese international student STRICTLY from the official page content provided below. Extract ONLY dates and requirements that appear in that content — never invent or infer dates that are not present. Omit any field the content does not state.\n\n${PLAN_OUTPUT_SPEC}`
+
+  const response = await withTimeout(ai.chat.completions.create({
+    model: 'qwen-plus',
+    response_format: { type: 'json_object' },
+    temperature: 0.1,
+    messages: [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: `University: ${universityName}\nProgramme: ${programme || 'General undergraduate'}\nTarget intake year: ${enrollmentYear}\n\nOFFICIAL PAGE CONTENT:\n${sourceText.slice(0, 16000)}`,
+      },
+    ],
+  }))
+
+  const plan = normalizeApplicationPlan(
+    parseJson<unknown>(response.choices[0].message.content, 'fetchApplicationPlanFromSource')
+  )
+
+  const validUrl = sourceUrl && /^https?:\/\//.test(sourceUrl) ? sourceUrl : null
+  if (validUrl) {
+    const seen = new Set(plan.sources.map((s) => s.url))
+    const sources = seen.has(validUrl)
+      ? plan.sources
+      : [{ url: validUrl, title: `${universityName} (provided page)` }, ...plan.sources]
+    return { ...plan, sources: sources.slice(0, 8), verified: true }
+  }
+  return { ...plan, verified: plan.sources.length > 0 }
+}
+
 // Per-university fit analysis was removed — fit/readiness now lives entirely in
 // the Portfolio assessment (see src/lib/assessor.ts + src/lib/assessment.ts).
 // Portfolio assessment now lives in the deep `assessment` module — see
