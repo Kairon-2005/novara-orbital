@@ -32,8 +32,16 @@ export default function LoginPage() {
       return
     }
 
+    // Route by role: admins → admin panel, parents → parent portal, else student.
+    let dest = '/dashboard'
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      if (profile?.role === 'admin') dest = '/admin'
+      else if (profile?.role === 'parent') dest = '/parent/dashboard'
+    }
     // Hard redirect so the server component re-renders with fresh session cookies.
-    window.location.href = '/dashboard'
+    window.location.href = dest
   }
 
   async function handleResend() {
