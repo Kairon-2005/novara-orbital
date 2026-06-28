@@ -7,6 +7,7 @@
 // Also: use `type` not `interface`, and spell out Insert/Update explicitly (no self-referential Omit).
 
 import type { PortfolioAssessment } from '@/types/assessment'
+import type { AssessmentRubric } from '@/types/rubric'
 import type { EvidenceClassification } from '@/types/evidence'
 import type { ApplicationPlan } from '@/lib/university-plan'
 
@@ -147,15 +148,36 @@ export type Database = {
         Row: {
           id: string; student_id: string; overall_level: string
           overall_summary: string; confidence: string
-          result: PortfolioAssessment; created_at: string
+          result: PortfolioAssessment
+          // The rubric this report was scored against — null for reports created
+          // before the maker/checker split. Lets history show the standard used.
+          rubric: AssessmentRubric | null
+          created_at: string
         }
         Insert: {
           id?: string; student_id: string; overall_level: string
           overall_summary?: string; confidence?: string; result: PortfolioAssessment
+          rubric?: AssessmentRubric | null
         }
         Update: {
           overall_level?: string; overall_summary?: string
-          confidence?: string; result?: PortfolioAssessment
+          confidence?: string; result?: PortfolioAssessment; rubric?: AssessmentRubric | null
+        }
+        Relationships: []
+      }
+      // Cache of one rubric per target (institution × programme × route), so the
+      // maker runs once per target rather than once per student.
+      assessment_rubrics: {
+        Row: {
+          id: string; university: string; programme: string; route: string
+          rubric: AssessmentRubric; generated_at: string; created_at: string
+        }
+        Insert: {
+          id?: string; university: string; programme: string; route?: string
+          rubric: AssessmentRubric; generated_at?: string
+        }
+        Update: {
+          rubric?: AssessmentRubric; generated_at?: string
         }
         Relationships: []
       }

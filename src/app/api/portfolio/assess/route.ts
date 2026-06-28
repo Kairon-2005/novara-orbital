@@ -4,7 +4,7 @@
 
 import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
-import { getStudentProfile, getAchievements, getEvidenceForAssessment } from '@/lib/data'
+import { getStudentProfile, getAchievements, getEvidenceForAssessment, getOrMakeRubric } from '@/lib/data'
 import { assessPortfolio } from '@/lib/assessor'
 
 export async function POST() {
@@ -23,12 +23,18 @@ export async function POST() {
   }
 
   try {
+    const target = {
+      university: profile.target_school ?? profile.target_university ?? '',
+      programme:  profile.programme_category ?? profile.target_programme ?? '',
+      route:      profile.application_route ?? profile.current_curriculum ?? undefined,
+    }
+
+    // Maker: the rubric (the standard) is built once per target and cached.
+    const rubric = await getOrMakeRubric(supabase, target)
+
+    // Checker: score this student's portfolio strictly against that rubric.
     const assessment = await assessPortfolio({
-      target: {
-        university: profile.target_school ?? profile.target_university ?? '',
-        programme:  profile.programme_category ?? profile.target_programme ?? '',
-        route:      profile.application_route ?? profile.current_curriculum ?? undefined,
-      },
+      target,
       profile: {
         currentYear:   profile.current_year      ?? '',
         currentSchool: profile.current_school     ?? '',
@@ -38,17 +44,18 @@ export async function POST() {
       },
       achievements: achievements.map(a => ({ category: a.category, title: a.title, description: a.description })),
       evidence,
-    })
+    }, rubric)
 
-    await supabase.from('portfolio_assessments').insert({
+    const { data: inserted } = await supabase.from('portfolio_assessments').insert({
       student_id:      user.id,
       overall_level:   assessment.overallLevel,
       overall_summary: assessment.overallSummary,
       confidence:      assessment.confidence,
       result:          assessment,
-    })
+      rubric,                                  // store the standard this report was scored against
+    }).select('id, created_at').single()
 
-    return NextResponse.json({ assessment })
+    return NextResponse.json({ assessment, rubric, id: inserted?.id, createdAt: inserted?.created_at })
   } catch (err) {
     console.error('[portfolio/assess]', err)
     return NextResponse.json({ error: 'Assessment failed. Please try again.' }, { status: 500 })

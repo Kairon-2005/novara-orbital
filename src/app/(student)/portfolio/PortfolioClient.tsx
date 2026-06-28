@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
 import { summarizeProgress, ALL_BADGES, XP_BY_CATEGORY } from '@/lib/gamification'
 import type { MockAchievement, MockMilestone, MockDocument, AchievementCategory } from '@/types/models'
+import type { AssessmentReportSummary } from '@/lib/data'
 import { ADMISSION_DIMENSIONS, type PortfolioAssessment, type DimensionLevel, type ReadinessLevel } from '@/types/assessment'
 
 // ── Category config ───────────────────────────────────────────────────────────
@@ -34,6 +36,11 @@ const READINESS_LABEL: Record<ReadinessLevel, string> = {
 }
 
 const DIM_NAME: Record<string, string> = Object.fromEntries(ADMISSION_DIMENSIONS.map(d => [d.id, d.name]))
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
 
 // ── XP Ring chart ─────────────────────────────────────────────────────────────
 
@@ -194,11 +201,12 @@ interface PortfolioClientProps {
   userId:              string
   targetProgramme:     string
   initialAssessment:   PortfolioAssessment | null
+  initialHistory:      AssessmentReportSummary[]
   hasNewEvidence:      boolean
 }
 
 export default function PortfolioClient({
-  initialAchievements, milestones, documents, userId, targetProgramme, initialAssessment, hasNewEvidence,
+  initialAchievements, milestones, documents, userId, targetProgramme, initialAssessment, initialHistory, hasNewEvidence,
 }: PortfolioClientProps) {
   const supabase = createBrowserClient()
   const toast = useToast()
@@ -206,6 +214,7 @@ export default function PortfolioClient({
   const [activeTab, setActiveTab]       = useState<'all' | AchievementCategory>('all')
   const [showForm, setShowForm]         = useState(false)
   const [assessment, setAssessment]     = useState<PortfolioAssessment | null>(initialAssessment)
+  const [history, setHistory]           = useState<AssessmentReportSummary[]>(initialHistory)
   const [assessing, setAssessing]       = useState(false)
   const [reassessed, setReassessed]     = useState(false)
 
@@ -243,10 +252,19 @@ export default function PortfolioClient({
     setAssessing(true)
     try {
       const res = await fetch('/api/portfolio/assess', { method: 'POST' })
-      const json = await res.json() as { assessment?: PortfolioAssessment; error?: string }
+      const json = await res.json() as { assessment?: PortfolioAssessment; id?: string; createdAt?: string; error?: string }
       if (res.ok && json.assessment) {
         setAssessment(json.assessment)
         setReassessed(true)
+        if (json.id) {
+          setHistory(prev => [{
+            id:             json.id!,
+            overallLevel:   json.assessment!.overallLevel,
+            confidence:     json.assessment!.confidence,
+            overallSummary: json.assessment!.overallSummary,
+            createdAt:      json.createdAt ?? new Date().toISOString(),
+          }, ...prev])
+        }
         toast({ title: 'Assessment updated', description: 'Your readiness has been re-evaluated.', variant: 'success' })
       } else {
         toast({ title: 'Assessment failed', description: json.error ?? 'Please try again.', variant: 'error' })
@@ -483,6 +501,37 @@ export default function PortfolioClient({
                   Run an assessment to see your strongest areas and the highest-leverage gaps for{' '}
                   <span className="font-semibold text-[var(--t700)]">{targetProgramme || 'your target programme'}</span>.
                 </p>
+              )}
+            </div>
+
+            {/* Report history */}
+            <div className="bg-white border border-[var(--border)] rounded-[12px] p-[20px_22px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+              <div className="font-display font-bold text-[13px] text-[var(--t900)] mb-3 flex items-center justify-between">
+                <span>📊 Report History</span>
+                <span className="text-[11px] font-normal text-[var(--t500)]">{history.length}</span>
+              </div>
+              {history.length === 0 ? (
+                <p className="text-[12px] text-[var(--t500)] leading-relaxed">
+                  No reports yet. Run an assessment to generate your first readiness report.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {history.map(h => (
+                    <Link
+                      key={h.id}
+                      href={`/portfolio/report/${h.id}`}
+                      className="flex items-center justify-between gap-2 p-[8px_10px] rounded-[8px] bg-[var(--bg)] hover:bg-[var(--blue-50)] transition group"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-semibold text-[var(--t700)] group-hover:text-[var(--blue)]">{fmtDate(h.createdAt)}</div>
+                        <div className="text-[11px] text-[var(--t500)] truncate">{h.overallSummary || '—'}</div>
+                      </div>
+                      <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: 'var(--blue)' }}>
+                        {READINESS_LABEL[h.overallLevel]}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
               )}
             </div>
 

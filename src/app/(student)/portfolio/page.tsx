@@ -7,6 +7,7 @@ import {
   getAchievements,
   getStudentDocuments,
   getLatestAssessmentInfo,
+  getAssessmentHistory,
   hasEvidenceSince,
 } from '@/lib/data'
 
@@ -16,12 +17,13 @@ export default async function PortfolioPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return <p className="p-10 text-red-500">Not authenticated.</p>
 
-  const [profile, { milestones }, achievements, documents, latest] = await Promise.all([
+  const [profile, { milestones }, achievements, documents, latest, history] = await Promise.all([
     getStudentProfile(supabase, user.id),
     getActiveRoadmapMilestones(supabase, user.id),
     getAchievements(supabase, user.id),
     getStudentDocuments(supabase, user.id),
     getLatestAssessmentInfo(supabase, user.id),
+    getAssessmentHistory(supabase, user.id),
   ])
 
   // The reassessment loop: flag when evidence has been added since the last run.
@@ -35,6 +37,7 @@ export default async function PortfolioPage() {
       userId={user.id}
       targetProgramme={profile?.target_programme ?? ''}
       initialAssessment={latest?.assessment ?? null}
+      initialHistory={history}
       hasNewEvidence={hasNewEvidence}
     />
   )
