@@ -10,7 +10,8 @@ import type { PortfolioAssessment } from '@/types/assessment'
 import type { EvidenceClassification } from '@/types/evidence'
 import type { ApplicationPlan } from '@/lib/university-plan'
 
-export type Role = 'student' | 'parent'
+export type Role = 'student' | 'parent' | 'admin'
+export type KbContributionStatus = 'pending' | 'approved' | 'rejected'
 export type MilestoneType = 'exam' | 'competition' | 'cca' | 'application' | 'academic' | 'other'
 export type AchievementCategory = 'competition' | 'academic' | 'cca' | 'volunteer' | 'award' | 'other'
 export type RoomType = 'single' | 'shared' | 'studio'
@@ -438,6 +439,21 @@ export type Database = {
           payload?: unknown; read_at?: string | null
         }
         Update: { read_at?: string | null }
+        Relationships: []
+      }
+      kb_contributions: {
+        Row: {
+          id: string; contributor_id: string; url: string | null; title: string
+          raw_text: string; status: KbContributionStatus
+          reviewed_by: string | null; reviewed_at: string | null; created_at: string
+        }
+        Insert: {
+          id?: string; contributor_id: string; url?: string | null; title: string
+          raw_text: string; status?: KbContributionStatus
+        }
+        Update: {
+          status?: KbContributionStatus; reviewed_by?: string | null; reviewed_at?: string | null
+        }
         Relationships: []
       }
       report_comments: {

@@ -84,3 +84,16 @@ export async function ingestReport(
   await admin.from('admission_reports').update({ ingested_at: nowIso }).eq('id', reportId)
   return { ingested: true, chunks: result.upserted }
 }
+
+/** Remove a case from the wiki/KB (admin revoke). Clears ingested_at and deletes the
+ *  doc's chunks from the vector store. Requires the service role (guarded column). */
+export async function removeReportFromKb(
+  admin: SupabaseClient<Database>,
+  reportId: string,
+): Promise<void> {
+  await admin.from('admission_reports').update({ ingested_at: null }).eq('id', reportId)
+  if (!qdrantConfigured()) return
+  const store = new QdrantStore()
+  const ids = await store.listIdsByDoc(`report-${reportId}`)
+  if (ids.length > 0) await store.deleteByIds(ids)
+}

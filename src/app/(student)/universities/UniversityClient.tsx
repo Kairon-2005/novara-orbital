@@ -211,6 +211,7 @@ function UniversityCard({
   const [pastedText, setPastedText] = useState('')
   const [sourceBusy, setSourceBusy] = useState(false)
   const [needsManual, setNeedsManual] = useState(false)
+  const [contributeKb, setContributeKb] = useState(false)
   const [proposed, setProposed] = useState<ProposedEvent[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const supabase = createBrowserClient()
@@ -306,6 +307,7 @@ function UniversityCard({
       if (sourceUrl.trim()) form.append('url', sourceUrl.trim())
       if (pastedText.trim()) form.append('pastedText', pastedText.trim())
       if (file) form.append('file', file)
+      if (contributeKb) form.append('contribute', '1')
       const res = await fetch('/api/universities/plan/from-source', { method: 'POST', body: form })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
@@ -523,6 +525,10 @@ function UniversityCard({
                     Build plan from text
                   </button>
                 </div>
+                <label className="flex items-center gap-1.5 text-[11px] text-[var(--t500)]">
+                  <input type="checkbox" checked={contributeKb} onChange={(e) => setContributeKb(e.target.checked)} />
+                  Also submit this official page to the knowledge base (admin-reviewed before it’s shared)
+                </label>
                 {needsManual && (
                   <p className="text-[11px] text-[var(--amber)]">Couldn’t read that link — paste the page text or upload a screenshot/PDF above.</p>
                 )}

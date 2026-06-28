@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   const url = (form.get('url') as string | null)?.trim() ?? ''
   const pastedText = (form.get('pastedText') as string | null)?.trim() ?? ''
   const file = form.get('file')
+  const contribute = form.get('contribute') === '1'
 
   const [{ data: target }, { data: profile }] = await Promise.all([
     supabase.from('university_targets').select('id, name, programme').eq('id', targetId).maybeSingle(),
@@ -67,6 +68,16 @@ export async function POST(request: Request) {
       .from('university_targets')
       .update({ application_plan: plan, plan_updated_at: planUpdatedAt })
       .eq('id', targetId)
+
+    // Optional: submit the page to the KB for admin review (not shared until approved).
+    if (contribute) {
+      await supabase.from('kb_contributions').insert({
+        contributor_id: user.id,
+        url: url || null,
+        title: `${target.name}${target.programme ? ` — ${target.programme}` : ''} — official page`,
+        raw_text: sourceText.slice(0, 20000),
+      })
+    }
 
     return NextResponse.json({
       plan,
