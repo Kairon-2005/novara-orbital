@@ -14,6 +14,8 @@ type CalEvent = {
   date: string   // YYYY-MM-DD
   type: EventType
   notes?: string
+  start_time?: string  // HH:MM
+  end_time?: string    // HH:MM
 }
 
 // ── Mock events (used as fallback / removed when DB is live) ────────────────
@@ -61,15 +63,17 @@ function daysUntil(dateStr: string, today: string) {
 // ── Add Event Modal ───────────────────────────────────────────────────────────
 
 function AddEventModal({ onAdd, onClose }: { onAdd: (e: CalEvent) => void | Promise<void>; onClose: () => void }) {
-  const [title, setTitle] = useState('')
-  const [date,  setDate]  = useState(todayStr())
-  const [type,  setType]  = useState<EventType>('personal')
-  const [notes, setNotes] = useState('')
+  const [title,      setTitle]      = useState('')
+  const [date,       setDate]       = useState(todayStr())
+  const [type,       setType]       = useState<EventType>('personal')
+  const [notes,      setNotes]      = useState('')
+  const [startTime,  setStartTime]  = useState('09:00')
+  const [endTime,    setEndTime]    = useState('10:00')
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !date) return
-    onAdd({ id: `ev-${Date.now()}`, title: title.trim(), date, type, notes: notes.trim() || undefined })
+    onAdd({ id: `ev-${Date.now()}`, title: title.trim(), date, type, notes: notes.trim() || undefined, start_time: startTime, end_time: endTime })
     onClose()
   }
 
@@ -99,6 +103,18 @@ function AddEventModal({ onAdd, onClose }: { onAdd: (e: CalEvent) => void | Prom
                 className="w-full px-3 py-2 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] text-[var(--t900)] focus:outline-none focus:border-[var(--blue)] bg-white cursor-pointer">
                 {Object.entries(EVENT_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">Start Time</label>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+                className="w-full px-3 py-2 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] text-[var(--t900)] focus:outline-none focus:border-[var(--blue)]" />
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">End Time</label>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
+                className="w-full px-3 py-2 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] text-[var(--t900)] focus:outline-none focus:border-[var(--blue)]" />
             </div>
           </div>
           <div>
@@ -366,7 +382,10 @@ const dayHours = useMemo(() =>
                         {hour}
                       </div>
                       {(calView === 'week' ? weekDays : [selectedDate]).map(dateStr => {
-                        const evs = byDate[dateStr] ?? []
+                        const evs = (byDate[dateStr] ?? []).filter(ev => {
+                          if (!ev.start_time) return hour === '09:00' // 没有时间的 event 默认显示在 09:00
+                          return ev.start_time.startsWith(hour.slice(0, 2))
+                        })
                         return (
                           <div key={dateStr}
                             onClick={() => setShowModal(true)}
@@ -379,6 +398,9 @@ const dayHours = useMemo(() =>
                                   className="text-[10px] font-medium px-[4px] py-[2px] rounded-[4px] mb-[2px] cursor-pointer hover:opacity-80 truncate"
                                   style={{ background: s.bg, color: s.color }}>
                                   {ev.title}
+                                  {ev.start_time && ev.end_time && (
+                                    <span className="opacity-70 ml-1">{ev.start_time.slice(0,5)}–{ev.end_time.slice(0,5)}</span>
+                                  )}
                                 </div>
                               )
                             })}
@@ -526,6 +548,8 @@ const dayHours = useMemo(() =>
             type: (TYPE_DB[ev.type] ?? 'personal') as 'exam' | 'cca' | 'application' | 'finance' | 'health' | 'personal' | 'system',
             source: 'manual',
             notes: ev.notes ?? null,
+            start_time: ev.start_time ?? null,
+            end_time: ev.end_time ?? null,
           })
         }}
         onClose={() => setShowModal(false)}
