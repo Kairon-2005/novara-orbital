@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
 import { summarizeProgress } from '@/lib/gamification'
-import { runeForType } from '@/lib/runes'
 import type { MockMilestone, MilestoneType, MockAchievement, MockDocument } from '@/types/models'
 import type { GeneratedRoadmap, RoadmapYear } from '@/types/roadmap'
 
@@ -81,7 +80,6 @@ function MilestoneRow({ ms, onToggle, onDelete, onAddToCalendar }: {
 }) {
   const [calAdded, setCalAdded] = useState(false)
   const tc = TYPE_CONFIG[ms.type]
-  const rune = runeForType(ms.type)
   const today = new Date().toISOString().slice(0, 10)
   const isActive = !ms.completed && ms.due_date >= today
 
@@ -113,17 +111,6 @@ function MilestoneRow({ ms, onToggle, onDelete, onAddToCalendar }: {
           </svg>
         )}
       </button>
-
-      {/* Element rune — "collected" once the milestone is complete */}
-      <div
-        title={`${rune.label} rune${ms.completed ? ' · collected' : ''}`}
-        className="w-[22px] h-[22px] rounded-[6px] flex items-center justify-center flex-shrink-0 mt-[1px] text-[12px] font-bold font-cn transition-all"
-        style={ms.completed
-          ? { background: rune.color, color: '#fff', boxShadow: `0 0 0 2px ${rune.color}33` }
-          : { background: `${rune.color}14`, color: rune.color, opacity: 0.85 }}
-      >
-        {rune.glyph}
-      </div>
 
       <div className="flex-1 min-w-0">
         <div
