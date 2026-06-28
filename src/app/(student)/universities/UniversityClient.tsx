@@ -5,6 +5,7 @@ import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
 import { planProgress, toggleDocument } from '@/lib/university-plan'
 import type { ApplicationPlan } from '@/lib/university-plan'
+import type { ProposedEvent } from '@/lib/application-events'
 
 // ── Types ─────────────────────────────────────────────────────
 // Fit/readiness analysis lives in the Portfolio assessment now — this page only
@@ -204,6 +205,15 @@ function UniversityCard({
   const [editLink, setEditLink]   = useState(false)
   const [linkVal, setLinkVal]     = useState(target.referenceLink)
   const [planLoading, setPlanLoading] = useState(false)
+  // "From the official page" → plan + adoptable events.
+  const [showSource, setShowSource] = useState(false)
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [pastedText, setPastedText] = useState('')
+  const [sourceBusy, setSourceBusy] = useState(false)
+  const [needsManual, setNeedsManual] = useState(false)
+  const [contributeKb, setContributeKb] = useState(false)
+  const [proposed, setProposed] = useState<ProposedEvent[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const supabase = createBrowserClient()
   const toast = useToast()
   const plan = target.applicationPlan
@@ -281,6 +291,58 @@ function UniversityCard({
       toast({ title: 'Plan generation failed', description: 'Please try again.', variant: 'error' })
     } finally {
       setPlanLoading(false)
+    }
+  }
+
+  async function handleFromSource(file?: File) {
+    if (!sourceUrl.trim() && !pastedText.trim() && !file) {
+      toast({ title: 'Add a link, paste the page, or upload a file', variant: 'error' })
+      return
+    }
+    setSourceBusy(true)
+    setNeedsManual(false)
+    try {
+      const form = new FormData()
+      form.append('targetId', target.id)
+      if (sourceUrl.trim()) form.append('url', sourceUrl.trim())
+      if (pastedText.trim()) form.append('pastedText', pastedText.trim())
+      if (file) form.append('file', file)
+      if (contributeKb) form.append('contribute', '1')
+      const res = await fetch('/api/universities/plan/from-source', { method: 'POST', body: form })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      if (json.needsManualInput) {
+        setNeedsManual(true)
+        toast({ title: "Couldn't read that page", description: 'Paste the text or upload a screenshot/PDF instead.', variant: 'error' })
+        return
+      }
+      onUpdate(target.id, { applicationPlan: json.plan, planUpdatedAt: json.planUpdatedAt })
+      const events: ProposedEvent[] = json.proposedEvents ?? []
+      setProposed(events)
+      setSelected(new Set(events.map((e) => `${e.date}|${e.title}`)))
+      toast({ title: 'Plan built from the official page', description: `${events.length} proposed events — review and sync.` })
+    } catch (e) {
+      toast({ title: 'Could not build a plan', description: e instanceof Error ? e.message : undefined, variant: 'error' })
+    } finally {
+      setSourceBusy(false)
+    }
+  }
+
+  async function handleSyncEvents() {
+    const events = proposed.filter((e) => selected.has(`${e.date}|${e.title}`))
+    if (events.length === 0) return
+    try {
+      const res = await fetch('/api/calendar/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast({ title: 'Synced to calendar', description: `Added ${json.added}, skipped ${json.skipped} (already there).`, variant: 'success' })
+      setProposed([])
+    } catch {
+      toast({ title: 'Could not sync to calendar', variant: 'error' })
     }
   }
 
@@ -413,14 +475,89 @@ function UniversityCard({
                   : <span className="ml-2 normal-case tracking-normal font-semibold text-[10px] px-1.5 py-0.5 rounded bg-[var(--amber-50)] text-[var(--amber)]">unverified — check official site</span>
                 )}
               </div>
-              <button
-                onClick={handleGeneratePlan}
-                disabled={planLoading}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-[6px] bg-[var(--blue-50)] text-[var(--blue)] hover:bg-[var(--blue-100)] disabled:opacity-50 transition"
-              >
-                {planLoading ? 'Building…' : plan ? '↻ Refresh plan' : '✦ Generate plan'}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowSource((s) => !s)}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-[6px] border border-[var(--border)] text-[var(--t500)] hover:border-[var(--blue)] transition"
+                >
+                  🔗 From official page
+                </button>
+                <button
+                  onClick={handleGeneratePlan}
+                  disabled={planLoading}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-[6px] bg-[var(--blue-50)] text-[var(--blue)] hover:bg-[var(--blue-100)] disabled:opacity-50 transition"
+                >
+                  {planLoading ? 'Building…' : plan ? '↻ Refresh plan' : '✦ Generate plan'}
+                </button>
+              </div>
             </div>
+
+            {showSource && (
+              <div className="mb-3 rounded-[8px] border border-[var(--border)] p-3 space-y-2">
+                <p className="text-[11px] text-[var(--t500)]">
+                  Paste the official deadlines/requirements page (or a link / screenshot). The assistant builds a plan from it and proposes calendar events — nothing is shared.
+                </p>
+                <div className="flex gap-1.5">
+                  <input
+                    value={sourceUrl}
+                    onChange={(e) => setSourceUrl(e.target.value)}
+                    placeholder="https://nus.edu.sg/oam/…"
+                    className="flex-1 px-2.5 py-1.5 border border-[var(--border)] rounded-[6px] text-[12px] bg-white"
+                  />
+                  <button onClick={() => handleFromSource()} disabled={sourceBusy} className="text-[12px] font-semibold px-3 py-1.5 rounded-[6px] bg-[var(--blue)] text-white disabled:opacity-50">
+                    {sourceBusy ? 'Reading…' : 'Fetch'}
+                  </button>
+                </div>
+                <textarea
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  rows={3}
+                  placeholder="…or paste the page text here"
+                  className="w-full px-2.5 py-1.5 border border-[var(--border)] rounded-[6px] text-[12px] bg-white"
+                />
+                <div className="flex items-center gap-2">
+                  <label className="text-[12px] font-semibold px-2.5 py-1.5 rounded-[6px] border border-[var(--border)] text-[var(--t500)] cursor-pointer hover:border-[var(--blue)]">
+                    Upload PDF/screenshot
+                    <input type="file" accept="application/pdf,image/*,.txt" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFromSource(f); e.target.value = '' }} />
+                  </label>
+                  <button onClick={() => handleFromSource()} disabled={sourceBusy} className="text-[12px] font-semibold px-3 py-1.5 rounded-[6px] bg-[var(--blue-50)] text-[var(--blue)] disabled:opacity-50">
+                    Build plan from text
+                  </button>
+                </div>
+                <label className="flex items-center gap-1.5 text-[11px] text-[var(--t500)]">
+                  <input type="checkbox" checked={contributeKb} onChange={(e) => setContributeKb(e.target.checked)} />
+                  Also submit this official page to the knowledge base (admin-reviewed before it’s shared)
+                </label>
+                {needsManual && (
+                  <p className="text-[11px] text-[var(--amber)]">Couldn’t read that link — paste the page text or upload a screenshot/PDF above.</p>
+                )}
+              </div>
+            )}
+
+            {proposed.length > 0 && (
+              <div className="mb-3 rounded-[8px] border border-[var(--blue)] bg-[var(--blue-50)] p-3">
+                <div className="text-[11px] font-semibold text-[var(--t700)] mb-1.5">Proposed calendar events</div>
+                <div className="space-y-1">
+                  {proposed.map((e) => {
+                    const key = `${e.date}|${e.title}`
+                    return (
+                      <label key={key} className="flex items-center gap-2 text-[12px] text-[var(--t700)]">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(key)}
+                          onChange={(ev) => setSelected((s) => { const n = new Set(s); if (ev.target.checked) n.add(key); else n.delete(key); return n })}
+                        />
+                        <span className="font-semibold">{e.date}</span> · {e.title}
+                      </label>
+                    )
+                  })}
+                </div>
+                <button onClick={handleSyncEvents} disabled={selected.size === 0} className="mt-2 text-[12px] font-semibold px-3 py-1.5 rounded-[6px] bg-[var(--blue)] text-white disabled:opacity-50">
+                  Sync {selected.size} to calendar
+                </button>
+              </div>
+            )}
 
             {!plan && !planLoading && (
               <div className="text-[12px] text-[var(--t300)] italic py-1">
