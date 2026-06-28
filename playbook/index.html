@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Novara — User Playbook</title>
+<style>
+  :root{
+    --bg:#ffffff; --surface:#f8fafc; --surface-2:#f1f5f9; --border:#e2e8f0;
+    --text:#0f172a; --muted:#475569; --faint:#94a3b8;
+    --blue:#2563eb; --blue-dark:#1d4ed8; --blue-50:#eff6ff; --blue-100:#dbeafe;
+    --green:#059669; --green-50:#ecfdf5; --amber:#b45309; --amber-50:#fffbeb;
+    --radius:10px; --maxw:880px; --side:282px;
+    --font:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:var(--font);color:var(--text);background:var(--bg);line-height:1.65;font-size:16px;-webkit-font-smoothing:antialiased}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ── Sidebar ── */
+  .sidebar{position:fixed;top:0;left:0;width:var(--side);height:100vh;overflow-y:auto;
+    background:var(--surface);border-right:1px solid var(--border);padding:22px 18px 60px}
+  .brand{display:flex;align-items:center;gap:10px;margin:4px 6px 22px;font-weight:800;font-size:17px;letter-spacing:-.01em}
+  .brand .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--blue),#60a5fa);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800}
+  .brand small{display:block;font-weight:500;color:var(--faint);font-size:11px;letter-spacing:.02em}
+  .nav-group{margin:18px 0 6px;padding:0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+  .nav a{display:block;padding:6px 10px;margin:1px 0;border-radius:7px;color:var(--muted);font-size:14px;font-weight:500}
+  .nav a:hover{background:var(--surface-2);text-decoration:none;color:var(--text)}
+  .nav a.active{background:var(--blue-50);color:var(--blue-dark);font-weight:600}
+
+  /* ── Content ── */
+  .content{margin-left:var(--side);padding:0 40px 120px;max-width:calc(var(--maxw) + 80px)}
+  .wrap{max-width:var(--maxw);margin:0 auto}
+  section{scroll-margin-top:24px;padding-top:14px}
+  h1{font-size:40px;line-height:1.15;letter-spacing:-.025em;margin:36px 0 8px;font-weight:800}
+  h2{font-size:27px;letter-spacing:-.02em;margin:54px 0 6px;padding-top:14px;font-weight:750;border-top:1px solid var(--border)}
+  h2:first-of-type{border-top:none}
+  h3{font-size:18px;margin:26px 0 6px;font-weight:700;letter-spacing:-.01em}
+  p{margin:10px 0;color:var(--muted)}
+  .lead{font-size:19px;color:var(--muted);margin:6px 0 8px}
+  .eyebrow{color:var(--blue);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-top:8px}
+  ul,ol{color:var(--muted);padding-left:22px;margin:10px 0}
+  li{margin:5px 0}
+  strong{color:var(--text)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--surface-2);border:1px solid var(--border);
+    border-radius:5px;padding:1px 6px;color:#0b4a9c}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0}
+
+  /* badges / pills */
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px;vertical-align:middle}
+  .pill.blue{background:var(--blue-50);color:var(--blue-dark)}
+  .pill.green{background:var(--green-50);color:var(--green)}
+  .pill.amber{background:var(--amber-50);color:var(--amber)}
+  .pill.new{background:var(--blue);color:#fff}
+
+  /* callouts */
+  .callout{border:1px solid var(--border);border-left-width:4px;border-radius:10px;padding:14px 16px;margin:18px 0;background:var(--surface)}
+  .callout .t{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:flex;gap:7px;align-items:center}
+  .callout p{margin:2px 0;color:var(--muted);font-size:14.5px}
+  .callout.note{border-left-color:var(--blue);background:var(--blue-50)}
+  .callout.note .t{color:var(--blue-dark)}
+  .callout.tip{border-left-color:var(--green);background:var(--green-50)}
+  .callout.tip .t{color:var(--green)}
+  .callout.warn{border-left-color:var(--amber);background:var(--amber-50)}
+  .callout.warn .t{color:var(--amber)}
+
+  /* steps */
+  ol.steps{list-style:none;counter-reset:s;padding-left:0;margin:16px 0}
+  ol.steps>li{counter-increment:s;position:relative;padding:4px 0 14px 44px;margin:0}
+  ol.steps>li::before{content:counter(s);position:absolute;left:0;top:2px;width:28px;height:28px;border-radius:50%;
+    background:var(--blue);color:#fff;font-weight:700;font-size:14px;display:grid;place-items:center}
+  ol.steps>li:not(:last-child)::after{content:"";position:absolute;left:13px;top:32px;bottom:0;width:2px;background:var(--blue-100)}
+
+  /* cards */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin:18px 0}
+  .card{border:1px solid var(--border);border-radius:12px;padding:16px;background:#fff;transition:.15s}
+  .card:hover{border-color:var(--blue);box-shadow:0 6px 18px rgba(37,99,235,.08);transform:translateY(-1px)}
+  .card h4{margin:8px 0 4px;font-size:15px}
+  .card p{margin:0;font-size:13.5px;color:var(--muted)}
+  .card .ico{width:34px;height:34px;border-radius:9px;background:var(--blue-50);display:grid;place-items:center}
+  .card a{font-weight:600}
+
+  /* figure / mock */
+  figure{margin:22px 0}
+  .mock{border:1px solid var(--border);border-radius:13px;overflow:hidden;background:#fff;box-shadow:0 8px 30px rgba(15,23,42,.07)}
+  .mock-bar{display:flex;align-items:center;gap:7px;padding:9px 13px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .mock-bar .d{width:11px;height:11px;border-radius:50%;background:#cbd5e1}
+  .mock-bar .url{margin-left:10px;font-family:var(--mono);font-size:11.5px;color:var(--faint);background:#fff;
+    border:1px solid var(--border);border-radius:6px;padding:3px 12px;flex:1;max-width:320px}
+  .mock svg{display:block;width:100%;height:auto}
+  .mock svg text{font-family:var(--font)}
+  figcaption{text-align:center;color:var(--faint);font-size:12.5px;margin-top:8px}
+
+  .kicker{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+  .toc-note{font-size:13px;color:var(--faint)}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px}
+  th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--surface);font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+
+  /* mobile */
+  .menu-btn{display:none}
+  @media (max-width:920px){
+    .sidebar{transform:translateX(-100%);transition:.2s;z-index:40;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+    body.nav-open .sidebar{transform:none}
+    .content{margin-left:0;padding:0 18px 100px}
+    .menu-btn{display:inline-flex;position:fixed;top:14px;left:14px;z-index:50;background:var(--blue);color:#fff;
+      border:none;border-radius:9px;padding:9px 13px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4)}
+    h1{font-size:32px;margin-top:54px}
+  }
+</style>
+</head>
+<body>
+<button class="menu-btn" onclick="document.body.classList.toggle('nav-open')">☰ Menu</button>
+
+<aside class="sidebar">
+  <div class="brand"><span class="logo">N</span><span>Novara<small>User Playbook</small></span></div>
+  <nav class="nav">
+    <div class="nav-group">Get started</div>
+    <a href="#overview">Overview</a>
+    <a href="#signup">Sign up &amp; onboarding</a>
+    <a href="#parent-link">Link a parent</a>
+
+    <div class="nav-group">Plan &amp; track</div>
+    <a href="#dashboard">Dashboard</a>
+    <a href="#roadmap">AI Roadmap</a>
+    <a href="#calendar">Calendar</a>
+
+    <div class="nav-group">Build your profile</div>
+    <a href="#portfolio">Portfolio</a>
+    <a href="#documents">Documents</a>
+
+    <div class="nav-group">Apply</div>
+    <a href="#universities">Universities &amp; Assistant</a>
+    <a href="#wiki">Knowledge Wiki</a>
+    <a href="#navigator">School Navigator</a>
+
+    <div class="nav-group">Community</div>
+    <a href="#community">Admission Case Library</a>
+
+    <div class="nav-group">Daily life</div>
+    <a href="#finance">Finance</a>
+    <a href="#homestay">Homestay</a>
+
+    <div class="nav-group">For parents</div>
+    <a href="#parents">Parent Portal</a>
+
+    <div class="nav-group">For operators</div>
+    <a href="#admin">Admin Panel</a>
+
+    <div class="nav-group">Reference</div>
+    <a href="#faq">FAQ</a>
+  </nav>
+</aside>
+
+<main class="content"><div class="wrap">
+
+  <!-- ───────────────────────── OVERVIEW ───────────────────────── -->
+  <section id="overview">
+    <div class="eyebrow">Novara Playbook</div>
+    <h1>Your Singapore education journey, guided</h1>
+    <p class="lead">Novara turns a sprawling, stressful application process into one clear loop: <strong>plan → build → apply → track</strong>, with real outcomes from other students and full visibility for parents. This playbook walks through every feature, who it's for, and exactly how to use it.</p>
+    <div class="kicker">
+      <span class="pill blue">Students</span>
+      <span class="pill blue">Parents</span>
+      <span class="pill blue">Admins</span>
+      <span class="toc-note">· Singapore-focused (NUS / NTU), secondary &amp; undergraduate</span>
+    </div>
+
+    <div class="cards">
+      <div class="card"><div class="ico">🗺️</div><h4>Plan</h4><p>An AI roadmap and a single calendar keep every deadline in one place.</p></div>
+      <div class="card"><div class="ico">🏆</div><h4>Build</h4><p>Track achievements, get an honest portfolio assessment, store documents.</p></div>
+      <div class="card"><div class="ico">🎓</div><h4>Apply</h4><p>Per-university application plans grounded in official pages and a curated wiki.</p></div>
+      <div class="card"><div class="ico">👥</div><h4>Learn from peers</h4><p>Verified admission cases — real backgrounds, real outcomes.</p></div>
+    </div>
+
+    <div class="callout note">
+      <div class="t">ℹ️ How to read this playbook</div>
+      <p>Each section lists <strong>what you can do</strong>, then <strong>how to do it</strong> step by step. Look for <span class="pill new">New</span> tags on the newest features and the colored callouts for tips and gotchas.</p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── SIGN UP ───────────────────────── -->
+  <section id="signup">
+    <h2>Sign up &amp; onboarding</h2>
+    <p>Create your account, then a short onboarding captures your background and goals so the AI can personalize everything that follows.</p>
+    <h3>How to get started</h3>
+    <ol class="steps">
+      <li>Open the app and choose <strong>Sign up</strong>. Pick your role — <strong>Student</strong> or <strong>Parent</strong> — and set a display name and password.</li>
+      <li>As a student, complete <strong>onboarding</strong>: nationality, current school &amp; curriculum (IB / A-Level / AP / O-Level), target university &amp; programme, target enrollment year, interests, and budget.</li>
+      <li>You land on your <strong>Dashboard</strong>. From here the AI can generate your roadmap immediately.</li>
+    </ol>
+    <figure>
+      <div class="mock"><div class="mock-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="url">novara.app/onboarding</span></div>
+      <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg" font-family="var(--font)">
+        <rect width="800" height="360" fill="#fff"/>
+        <rect x="0" y="0" width="800" height="6" fill="#2563eb"/>
+        <text x="56" y="58" font-size="22" font-weight="700" fill="#0f172a">Tell us about you</text>
+        <text x="56" y="84" font-size="13" fill="#94a3b8">Step 2 of 4 · Background</text>
+        <rect x="56" y="100" width="688" height="6" rx="3" fill="#e2e8f0"/><rect x="56" y="100" width="344" height="6" rx="3" fill="#2563eb"/>
+        <g font-size="12" fill="#475569">
+          <text x="56" y="142">Current curriculum</text>
+          <rect x="56" y="150" width="320" height="40" rx="9" fill="#eff6ff" stroke="#bfdbfe"/><text x="74" y="175" font-size="13" fill="#1d4ed8" font-weight="600">IB Diploma</text>
+          <text x="424" y="142">Target university</text>
+          <rect x="424" y="150" width="320" height="40" rx="9" fill="#f8fafc" stroke="#e2e8f0"/><text x="442" y="175" font-size="13" fill="#0f172a">National University of Singapore</text>
+          <text x="56" y="224">Target programme</text>
+          <rect x="56" y="232" width="320" height="40" rx="9" fill="#f8fafc" stroke="#e2e8f0"/><text x="74" y="257" font-size="13" fill="#0f172a">Computer Science</text>
+          <text x="424" y="224">Enrollment year</text>
+          <rect x="424" y="232" width="320" height="40" rx="9" fill="#f8fafc" stroke="#e2e8f0"/><text x="442" y="257" font-size="13" fill="#0f172a">2027</text>
+        </g>
+        <rect x="624" y="300" width="120" height="40" rx="10" fill="#2563eb"/><text x="684" y="325" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">Continue →</text>
+      </svg></div>
+      <figcaption>Onboarding captures the signals the AI roadmap and assessment depend on.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ───────────────────────── PARENT LINK ───────────────────────── -->
+  <section id="parent-link">
+    <h2>Link a parent account</h2>
+    <p>Parents get a read-only window into their child's journey — in Simplified Chinese. Linking uses a short invite code, so no email is required.</p>
+    <ol class="steps">
+      <li>In the student app, open your profile and copy your <strong>6-character invite code</strong>.</li>
+      <li>The parent signs up as a <strong>Parent</strong> and enters the code on the <strong>Join</strong> screen.</li>
+      <li>The accounts are linked. The parent now sees roadmap, deadlines, finances, and progress for that student.</li>
+    </ol>
+    <div class="callout tip"><div class="t">💡 No email needed</div><p>Family connection is the web dashboard plus WeChat-friendly sharing — Novara never sends email.</p></div>
+  </section>
+
+  <!-- ───────────────────────── DASHBOARD ───────────────────────── -->
+  <section id="dashboard">
+    <h2>Dashboard</h2>
+    <p>Your home base: what's next, how ready you are, and quick links into every tool.</p>
+    <ul>
+      <li><strong>Upcoming deadlines</strong> pulled from your calendar and roadmap.</li>
+      <li><strong>Readiness</strong> snapshot from your latest portfolio assessment.</li>
+      <li><strong>Recent achievements</strong> and quick actions (generate roadmap, add a target, log an achievement).</li>
+    </ul>
+    <figure>
+      <div class="mock"><div class="mock-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="url">novara.app/dashboard</span></div>
+      <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="360" fill="#fff"/>
+        <text x="32" y="46" font-size="20" font-weight="800" fill="#0f172a">Welcome back, Wei 👋</text>
+        <rect x="32" y="68" width="230" height="120" rx="12" fill="#eff6ff" stroke="#dbeafe"/>
+        <text x="50" y="96" font-size="12" fill="#1d4ed8" font-weight="700">READINESS</text>
+        <text x="50" y="140" font-size="40" font-weight="800" fill="#2563eb">72</text><text x="116" y="140" font-size="16" fill="#60a5fa">/100</text>
+        <text x="50" y="166" font-size="12" fill="#475569">On track for NUS CS</text>
+        <rect x="285" y="68" width="230" height="120" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="303" y="96" font-size="12" fill="#475569" font-weight="700">NEXT DEADLINE</text>
+        <text x="303" y="124" font-size="16" font-weight="700" fill="#0f172a">UCAS submission</text>
+        <text x="303" y="148" font-size="13" fill="#b45309">in 18 days · 15 Oct</text>
+        <rect x="538" y="68" width="230" height="120" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="556" y="96" font-size="12" fill="#475569" font-weight="700">ACHIEVEMENTS</text>
+        <text x="556" y="140" font-size="40" font-weight="800" fill="#0f172a">12</text>
+        <text x="556" y="166" font-size="12" fill="#475569">+185 XP this term</text>
+        <rect x="32" y="208" width="736" height="120" rx="12" fill="#fff" stroke="#e2e8f0"/>
+        <text x="50" y="236" font-size="13" font-weight="700" fill="#0f172a">Quick actions</text>
+        <g font-size="12" font-weight="600">
+          <rect x="50" y="252" width="150" height="56" rx="10" fill="#2563eb"/><text x="125" y="285" fill="#fff" text-anchor="middle">✦ Generate roadmap</text>
+          <rect x="214" y="252" width="150" height="56" rx="10" fill="#eff6ff" stroke="#bfdbfe"/><text x="289" y="285" fill="#1d4ed8" text-anchor="middle">+ Add a target</text>
+          <rect x="378" y="252" width="150" height="56" rx="10" fill="#eff6ff" stroke="#bfdbfe"/><text x="453" y="285" fill="#1d4ed8" text-anchor="middle">+ Log achievement</text>
+          <rect x="542" y="252" width="150" height="56" rx="10" fill="#eff6ff" stroke="#bfdbfe"/><text x="617" y="285" fill="#1d4ed8" text-anchor="middle">Browse cases</text>
+        </g>
+      </svg></div>
+      <figcaption>The dashboard surfaces readiness, the next deadline, and one-tap actions.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ───────────────────────── ROADMAP ───────────────────────── -->
+  <section id="roadmap">
+    <h2>AI Roadmap</h2>
+    <p>A personalized, multi-year academic plan — exams, competitions, applications, and milestones — generated from your profile and grounded in the knowledge base for NUS/NTU.</p>
+    <h3>How to generate &amp; adopt a roadmap</h3>
+    <ol class="steps">
+      <li>On <strong>Roadmap</strong>, tap <strong>Generate</strong>. The AI drafts a year-by-year plan (it stays a <em>preview</em> until you accept it).</li>
+      <li>Review the milestones. <strong>Adopt</strong> to save it; this archives any previous active roadmap.</li>
+      <li>Tick milestones off as you complete them. Your freemium quota allows a first generation plus a yearly refresh.</li>
+    </ol>
+    <div class="callout note"><div class="t">ℹ️ Preview, then commit</div><p>AI output is always shown for review before it changes your data — nothing is saved until you accept it.</p></div>
+    <figure>
+      <div class="mock"><div class="mock-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="url">novara.app/roadmap</span></div>
+      <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="360" fill="#fff"/>
+        <text x="32" y="44" font-size="18" font-weight="800" fill="#0f172a">Your roadmap to NUS Computer Science</text>
+        <line x1="60" y1="84" x2="60" y2="330" stroke="#dbeafe" stroke-width="3"/>
+        <g>
+          <circle cx="60" cy="110" r="9" fill="#2563eb"/><rect x="92" y="92" width="676" height="40" rx="9" fill="#f8fafc" stroke="#e2e8f0"/>
+          <text x="110" y="110" font-size="13" font-weight="700" fill="#0f172a">Year 1 · IB mock exams</text><text x="110" y="125" font-size="11" fill="#94a3b8">Apr–May · exam</text>
+          <circle cx="60" cy="170" r="9" fill="#2563eb"/><rect x="92" y="152" width="676" height="40" rx="9" fill="#eff6ff" stroke="#bfdbfe"/>
+          <text x="110" y="170" font-size="13" font-weight="700" fill="#0f172a">Year 2 · UCAS application submission</text><text x="110" y="185" font-size="11" fill="#1d4ed8">Oct · application</text>
+          <circle cx="60" cy="230" r="9" fill="#cbd5e1"/><rect x="92" y="212" width="676" height="40" rx="9" fill="#f8fafc" stroke="#e2e8f0"/>
+          <text x="110" y="230" font-size="13" font-weight="700" fill="#0f172a">Year 2 · SAT November sitting</text><text x="110" y="245" font-size="11" fill="#94a3b8">Nov · exam</text>
+          <circle cx="60" cy="290" r="9" fill="#cbd5e1"/><rect x="92" y="272" width="676" height="40" rx="9" fill="#f8fafc" stroke="#e2e8f0"/>
+          <text x="110" y="290" font-size="13" font-weight="700" fill="#0f172a">Year 3 · IB final exams &amp; results</text><text x="110" y="305" font-size="11" fill="#94a3b8">Apr–Jul · academic</text>
+        </g>
+        <rect x="600" y="20" width="168" height="34" rx="9" fill="#2563eb"/><text x="684" y="42" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">✦ Regenerate</text>
+      </svg></div>
+      <figcaption>A year-by-year timeline of exams, competitions, and application milestones.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ───────────────────────── CALENDAR ───────────────────────── -->
+  <section id="calendar">
+    <h2>Calendar</h2>
+    <p>One master calendar for exams, application deadlines, CCAs, fees, and personal events — colored by type and source.</p>
+    <ul>
+      <li>Events come from the <strong>AI</strong> (roadmap &amp; application plans), <strong>finance</strong> (fee due dates), and your own <strong>manual</strong> entries.</li>
+      <li>Built-in <strong>reminders</strong> at 30 / 7 / 3 / 1 days before.</li>
+      <li><strong>Export to <code>.ics</code></strong> to sync with Apple/Google Calendar.</li>
+    </ul>
+    <div class="callout tip"><div class="t">💡 Auto-filled from application plans</div><p>The Application Assistant can push deadlines straight here — see <a href="#universities">Universities &amp; Assistant</a>.</p></div>
+  </section>
+
+  <!-- ───────────────────────── PORTFOLIO ───────────────────────── -->
+  <section id="portfolio">
+    <h2>Portfolio</h2>
+    <p>Log achievements, earn XP, and get an honest, dimension-based assessment of how your profile stacks up against your target.</p>
+    <h3>How to use it</h3>
+    <ol class="steps">
+      <li>Add <strong>achievements</strong> — competitions, academics, CCAs, volunteering, awards — each worth XP that builds your gamified total.</li>
+      <li>Run a <strong>Portfolio Assessment</strong>: the AI scores you across dimensions and explains strengths and gaps versus your target programme.</li>
+      <li>Use the gaps to drive your roadmap and what to add next.</li>
+    </ol>
+    <figure>
+      <div class="mock"><div class="mock-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="url">novara.app/portfolio</span></div>
+      <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="320" fill="#fff"/>
+        <text x="32" y="44" font-size="18" font-weight="800" fill="#0f172a">Portfolio</text>
+        <rect x="32" y="64" width="360" height="220" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="52" y="92" font-size="12" font-weight="700" fill="#475569">ASSESSMENT · STRONG</text>
+        <g font-size="12" fill="#475569">
+          <text x="52" y="128">Academics</text><rect x="160" y="118" width="212" height="10" rx="5" fill="#e2e8f0"/><rect x="160" y="118" width="180" height="10" rx="5" fill="#2563eb"/>
+          <text x="52" y="158">Competitions</text><rect x="160" y="148" width="212" height="10" rx="5" fill="#e2e8f0"/><rect x="160" y="148" width="150" height="10" rx="5" fill="#2563eb"/>
+          <text x="52" y="188">Leadership</text><rect x="160" y="178" width="212" height="10" rx="5" fill="#e2e8f0"/><rect x="160" y="178" width="96" height="10" rx="5" fill="#f59e0b"/>
+          <text x="52" y="218">Service</text><rect x="160" y="208" width="212" height="10" rx="5" fill="#e2e8f0"/><rect x="160" y="208" width="130" height="10" rx="5" fill="#2563eb"/>
+        </g>
+        <text x="52" y="258" font-size="11" fill="#b45309">Gap: strengthen leadership evidence (lead a project).</text>
+        <rect x="412" y="64" width="356" height="220" rx="12" fill="#fff" stroke="#e2e8f0"/>
+        <text x="432" y="92" font-size="12" font-weight="700" fill="#475569">ACHIEVEMENTS · 1,240 XP</text>
+        <g font-size="12.5">
+          <rect x="432" y="106" width="316" height="44" rx="9" fill="#eff6ff" stroke="#dbeafe"/><text x="448" y="133" fill="#0f172a" font-weight="600">🥈 SASMO Silver</text><text x="700" y="133" fill="#1d4ed8" text-anchor="end">+60</text>
+          <rect x="432" y="156" width="316" height="44" rx="9" fill="#f8fafc" stroke="#e2e8f0"/><text x="448" y="183" fill="#0f172a" font-weight="600">🤖 Robotics VP</text><text x="700" y="183" fill="#475569" text-anchor="end">+35</text>
+          <rect x="432" y="206" width="316" height="44" rx="9" fill="#f8fafc" stroke="#e2e8f0"/><text x="448" y="233" fill="#0f172a" font-weight="600">📘 IB predicted 38/45</text><text x="700" y="233" fill="#475569" text-anchor="end">+40</text>
+        </g>
+      </svg></div>
+      <figcaption>Dimension-based assessment on the left, XP-earning achievements on the right.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ───────────────────────── DOCUMENTS ───────────────────────── -->
+  <section id="documents">
+    <h2>Documents</h2>
+    <p>A secure home for transcripts, certificates, passports, and application files. Uploads are private to you and stored in encrypted storage.</p>
+    <ul>
+      <li>Upload PDFs or images; the AI <strong>extracts the text and classifies</strong> each document so it can feed the assistant and assessment.</li>
+      <li>Grant a linked parent <strong>read access</strong> per document when you choose.</li>
+    </ul>
+    <div class="callout warn"><div class="t">⚠️ Your files stay private</div><p>Documents are visible only to you unless you explicitly share a document with a linked parent.</p></div>
+  </section>
+
+  <!-- ───────────────────────── UNIVERSITIES ───────────────────────── -->
+  <section id="universities">
+    <h2>Universities &amp; Application Assistant <span class="pill new">New</span></h2>
+    <p>Track every target school, get an AI <strong>gap analysis</strong>, and build a structured <strong>application plan</strong> — application window, deadlines, and a document checklist — then push the deadlines straight to your calendar.</p>
+
+    <h3>Build a plan from the official page</h3>
+    <p>Some university pages can't be scraped. So you hand Novara the page — by <strong>link, paste, or upload</strong> — and the assistant grounds the plan in <em>that</em> content (never invented dates).</p>
+    <ol class="steps">
+      <li>Open a target and choose <strong>🔗 From official page</strong>.</li>
+      <li>Paste a <strong>link</strong> (Novara fetches it), or <strong>paste the page text</strong>, or <strong>upload</strong> a PDF/screenshot. If a link can't be read, it asks you to paste — never a dead end.</li>
+      <li>Review the generated plan. The assistant proposes <strong>calendar events</strong>, including a “submit all materials” milestone.</li>
+      <li>Tick the events you want and <strong>Sync to calendar</strong>. Re-syncing never creates duplicates.</li>
+    </ol>
+    <figure>
+      <div class="mock"><div class="mock-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="url">novara.app/universities</span></div>
+      <svg viewBox="0 0 800 380" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="380" fill="#fff"/>
+        <text x="32" y="42" font-size="17" font-weight="800" fill="#0f172a">NUS · Computer Science</text>
+        <rect x="600" y="22" width="168" height="30" rx="8" fill="#eff6ff" stroke="#bfdbfe"/><text x="684" y="42" font-size="12" font-weight="700" fill="#1d4ed8" text-anchor="middle">🔗 From official page</text>
+        <rect x="32" y="64" width="736" height="92" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="50" y="88" font-size="12" font-weight="700" fill="#475569">PASTE OR LINK THE OFFICIAL PAGE</text>
+        <rect x="50" y="98" width="520" height="36" rx="8" fill="#fff" stroke="#e2e8f0"/><text x="66" y="121" font-size="12" fill="#94a3b8">https://nus.edu.sg/oam/admissions/important-dates</text>
+        <rect x="584" y="98" width="80" height="36" rx="8" fill="#2563eb"/><text x="624" y="121" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">Fetch</text>
+        <rect x="672" y="98" width="92" height="36" rx="8" fill="#eff6ff" stroke="#bfdbfe"/><text x="718" y="121" font-size="11.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">Upload</text>
+        <rect x="32" y="172" width="736" height="184" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="50" y="198" font-size="12" font-weight="800" fill="#1d4ed8">PROPOSED CALENDAR EVENTS</text>
+        <g font-size="12.5" fill="#0f172a">
+          <rect x="50" y="210" width="16" height="16" rx="4" fill="#2563eb"/><text x="58" y="223" font-size="11" fill="#fff" text-anchor="middle">✓</text>
+          <text x="78" y="223" font-weight="600">2026-10-15</text><text x="170" y="223">UCAS application deadline</text>
+          <rect x="50" y="240" width="16" height="16" rx="4" fill="#2563eb"/><text x="58" y="253" font-size="11" fill="#fff" text-anchor="middle">✓</text>
+          <text x="78" y="253" font-weight="600">2026-11-30</text><text x="170" y="253">Submit all application materials — NUS</text>
+          <rect x="50" y="270" width="16" height="16" rx="4" fill="#fff" stroke="#94a3b8"/>
+          <text x="78" y="283" font-weight="600">2027-01-15</text><text x="170" y="283">Scholarship application closes</text>
+        </g>
+        <rect x="50" y="306" width="210" height="38" rx="10" fill="#2563eb"/><text x="155" y="330" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">Sync 2 to calendar</text>
+        <text x="280" y="330" font-size="11.5" fill="#1d4ed8">✓ from official sources</text>
+      </svg></div>
+      <figcaption>Paste/link/upload the official page → an AI plan → adoptable calendar events.</figcaption>
+    </figure>
+    <div class="callout tip"><div class="t">💡 Contribute to the wiki</div><p>When you build a plan from an official page, you can optionally submit that page for admin review so it improves the shared knowledge base — it's never shared until an admin approves it.</p></div>
+  </section>
+
+  <!-- ───────────────────────── WIKI ───────────────────────── -->
+  <section id="wiki">
+    <h2>Knowledge Wiki</h2>
+    <p>A curated, searchable knowledge base of official NUS/NTU admissions facts and pathway guides — the same corpus the AI cites when it answers you.</p>
+    <ul>
+      <li><strong>Browse</strong> docs grouped by university, pathway, and topic.</li>
+      <li><strong>Search</strong> with hybrid retrieval (semantic + keyword) so exact scores and dates rank well.</li>
+      <li>Every doc shows its <strong>source URLs</strong> and a <strong>last-verified</strong> date.</li>
+    </ul>
+    <div class="callout note"><div class="t">ℹ️ Verified community cases feed in here</div><p>When an admission case is verified, its anonymized experience is added to the wiki so the AI can cite real outcomes.</p></div>
+  </section>
+
+  <!-- ───────────────────────── NAVIGATOR ───────────────────────── -->
+  <section id="navigator">
+    <h2>School Navigator</h2>
+    <p>A curated directory of Singapore schools — type, curriculum, zone, and details — to help you orient before you target.</p>
+    <ul><li>Filter by school type and curriculum; see zone and key info at a glance.</li></ul>
+  </section>
+
+  <!-- ───────────────────────── COMMUNITY ───────────────────────── -->
+  <section id="community">
+    <h2>Admission Case Library <span class="pill new">New</span></h2>
+    <p>The heart of the community: real, <strong>verified</strong> admission outcomes — "what background got which offer" — plus the experience behind each result. Inspired by 一亩三分地 / Offer多多, adapted for Singapore admissions and <strong>anonymous by default</strong>.</p>
+
+    <h3>Share your result (and get it verified)</h3>
+    <ol class="steps">
+      <li>Tap <strong>+ Share your result</strong>. Upload your offer letter / transcript — it <strong>auto-fills</strong> the form and privately backs verification.</li>
+      <li>Fill in outcome (school, programme, route, result, year, scholarship), a compact background line, and your experience write-up.</li>
+      <li>On publish, the AI <strong>cross-checks your proof</strong> against what you wrote. If they match you earn a <span class="pill green">✅ Verified</span> badge; if not, you'll see exactly which fields conflict.</li>
+    </ol>
+    <div class="callout warn"><div class="t">⚠️ Proof stays private</div><p>Your uploaded documents are <strong>never</strong> shown to other users — only the verdict (a badge + which fields matched) is public. Only verified cases feed the wiki and count in statistics.</p></div>
+
+    <h3>Browse the case library &amp; positioning</h3>
+    <ol class="steps">
+      <li>Open the <strong>案例库 Cases</strong> tab and filter by school, programme, route, result, year, or “verified only”.</li>
+      <li>Read the <strong>positioning panel</strong>: total verified cases, offer rate, result breakdown, and comparable backgrounds for your filter.</li>
+      <li>Use <strong>顶 / 踩</strong> votes, <strong>🔖 Save</strong> cases to <em>我的收藏</em>, comment, and check <strong>我的记录</strong> for your own footprint.</li>
+    </ol>
+    <figure>
+      <div class="mock"><div class="mock-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="url">novara.app/community</span></div>
+      <svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="400" fill="#fff"/>
+        <g font-size="13" font-weight="700">
+          <text x="32" y="40" fill="#2563eb">案例库 Cases</text><text x="140" y="40" fill="#94a3b8">经验 Feed</text><text x="250" y="40" fill="#94a3b8">收藏</text><text x="320" y="40" fill="#94a3b8">我的记录</text>
+        </g>
+        <line x1="32" y1="52" x2="100" y2="52" stroke="#2563eb" stroke-width="3"/>
+        <rect x="32" y="66" width="736" height="80" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="56" y="100" font-size="30" font-weight="800" fill="#2563eb">48</text><text x="56" y="120" font-size="11" fill="#475569">VERIFIED CASES</text>
+        <text x="190" y="100" font-size="30" font-weight="800" fill="#059669">61%</text><text x="190" y="120" font-size="11" fill="#475569">OFFER RATE</text>
+        <g font-size="11" font-weight="700">
+          <rect x="330" y="84" width="90" height="26" rx="13" fill="#ecfdf5"/><text x="375" y="101" fill="#059669" text-anchor="middle">Offer 29</text>
+          <rect x="428" y="84" width="96" height="26" rx="13" fill="#fef2f2"/><text x="476" y="101" fill="#e02424" text-anchor="middle">Rejected 12</text>
+          <rect x="532" y="84" width="96" height="26" rx="13" fill="#fffbeb"/><text x="580" y="101" fill="#b45309" text-anchor="middle">Waitlist 7</text>
+        </g>
+        <g font-size="12.5">
+          <rect x="32" y="160" width="736" height="68" rx="11" fill="#fff" stroke="#e2e8f0"/>
+          <rect x="48" y="176" width="54" height="22" rx="6" fill="#ecfdf5"/><text x="75" y="191" font-size="11" font-weight="700" fill="#059669" text-anchor="middle">offer</text>
+          <text x="116" y="184" font-weight="700" fill="#0f172a">NUS · Computer Science</text>
+          <text x="660" y="184" font-size="11" font-weight="700" fill="#059669">✅ 已验证</text>
+          <text x="116" y="208" font-size="11.5" fill="#475569">IB · IB 43/45 (HL Math 7) · IELTS 7.5 · 2026</text>
+          <text x="700" y="208" font-size="11" fill="#94a3b8">▲ 24</text>
+
+          <rect x="32" y="240" width="736" height="68" rx="11" fill="#fff" stroke="#e2e8f0"/>
+          <rect x="48" y="256" width="54" height="22" rx="6" fill="#ecfdf5"/><text x="75" y="271" font-size="11" font-weight="700" fill="#059669" text-anchor="middle">offer</text>
+          <text x="116" y="264" font-weight="700" fill="#0f172a">NTU · Business</text>
+          <text x="660" y="264" font-size="11" font-weight="700" fill="#059669">✅ 已验证</text>
+          <text x="116" y="288" font-size="11.5" fill="#475569">A-Level · AAA/A* · IELTS 7.0 · 2026</text>
+          <text x="700" y="288" font-size="11" fill="#94a3b8">▲ 17</text>
+
+          <rect x="32" y="320" width="736" height="64" rx="11" fill="#fff" stroke="#e2e8f0"/>
+          <rect x="48" y="336" width="70" height="22" rx="6" fill="#fef2f2"/><text x="83" y="351" font-size="11" font-weight="700" fill="#e02424" text-anchor="middle">rejected</text>
+          <text x="132" y="344" font-weight="700" fill="#0f172a">NUS · Business Analytics</text>
+          <text x="664" y="344" font-size="11" fill="#94a3b8">未验证</text>
+          <text x="132" y="366" font-size="11.5" fill="#475569">IB · IB 39/45 · 2026</text>
+        </g>
+      </svg></div>
+      <figcaption>The Cases tab: positioning stats on top, filterable verified cases below.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ───────────────────────── FINANCE ───────────────────────── -->
+  <section id="finance">
+    <h2>Finance</h2>
+    <p>Stay on top of the money side — tuition and homestay fees, insurance, and day-to-day spending.</p>
+    <ul>
+      <li><strong>Fee items</strong> with due dates flow into your calendar so nothing is missed.</li>
+      <li><strong>Insurance policies</strong> with renewal dates and claims hotlines.</li>
+      <li><strong>Expense logging</strong> by category for a monthly budget view. Visible to a linked parent in Chinese.</li>
+    </ul>
+  </section>
+
+  <!-- ───────────────────────── HOMESTAY ───────────────────────── -->
+  <section id="homestay">
+    <h2>Homestay</h2>
+    <p>Browse a directory of host families near Singapore schools, compare options, and shortlist.</p>
+    <ul>
+      <li>Filter by zone, room type, monthly rate, and nearby schools.</li>
+      <li><strong>Save</strong> listings to a shortlist and read <strong>reviews</strong>.</li>
+    </ul>
+  </section>
+
+  <!-- ───────────────────────── PARENTS ───────────────────────── -->
+  <section id="parents">
+    <h2>Parent Portal <span class="pill blue">简体中文</span></h2>
+    <p>Once linked, parents get a read-only, Simplified-Chinese view of their child's journey — plus the communications tools families actually need.</p>
+    <ul>
+      <li><strong>孩子概况</strong> — dashboard, roadmap, deadlines, finances, and readiness, all in Chinese.</li>
+      <li><strong>沟通中心</strong> — paste an English school notice; get a Chinese <strong>translation + summary</strong>, then an AI-drafted English <strong>reply</strong> from your Chinese intent.</li>
+      <li>Read-only by design — parents see progress without changing the student's data.</li>
+    </ul>
+    <figure>
+      <div class="mock"><div class="mock-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="url">novara.app/parent/comms</span></div>
+      <svg viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="300" fill="#fff"/>
+        <text x="32" y="42" font-size="17" font-weight="800" fill="#0f172a">沟通中心 · 学校通知翻译</text>
+        <rect x="32" y="62" width="360" height="210" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="52" y="88" font-size="11" font-weight="700" fill="#94a3b8">ORIGINAL (EN)</text>
+        <text x="52" y="112" font-size="12" fill="#475569">Dear Parents, Term 3 invoice</text>
+        <text x="52" y="132" font-size="12" fill="#475569">attached. Total due: SGD 9,500,</text>
+        <text x="52" y="152" font-size="12" fill="#475569">by 1 July 2026.</text>
+        <rect x="412" y="62" width="356" height="210" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="432" y="88" font-size="11" font-weight="700" fill="#1d4ed8">中文翻译 + 摘要</text>
+        <text x="432" y="112" font-size="12.5" fill="#0f172a">第三学期账单已附上，</text>
+        <text x="432" y="134" font-size="12.5" fill="#0f172a">应付新币 9,500 元，</text>
+        <text x="432" y="156" font-size="12.5" fill="#0f172a">截止 2026 年 7 月 1 日。</text>
+        <rect x="432" y="178" width="316" height="34" rx="8" fill="#fff" stroke="#bfdbfe"/><text x="448" y="200" font-size="11.5" fill="#1d4ed8">📝 摘要：7月1日前缴清学费</text>
+        <rect x="432" y="222" width="180" height="34" rx="9" fill="#2563eb"/><text x="522" y="244" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">✍️ 起草英文回复</text>
+      </svg></div>
+      <figcaption>Translate a school notice and draft an English reply from Chinese intent.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ───────────────────────── ADMIN ───────────────────────── -->
+  <section id="admin">
+    <h2>Admin Panel <span class="pill new">New</span></h2>
+    <p>For operators (<code>role: admin</code>). The control room for everything that needs a human: moderation, verification oversight, the knowledge base, and directories. Reach it at <code>/admin</code>; non-admins are redirected.</p>
+    <table>
+      <tr><th>Module</th><th>What you do</th></tr>
+      <tr><td><strong>Dashboard</strong></td><td>Counts at a glance — users, cases by status, KB docs, pending moderation &amp; contributions.</td></tr>
+      <tr><td><strong>Moderation</strong></td><td>Review <em>flagged</em> cases &amp; comments → <strong>Approve</strong> or <strong>Remove</strong>.</td></tr>
+      <tr><td><strong>Verification</strong></td><td>Filter cases by status; manually <strong>override</strong> the AI (force-verify / revoke / resolve) — which re-runs the wiki gate.</td></tr>
+      <tr><td><strong>Knowledge base</strong></td><td>List / refresh / delete KB docs; review <strong>user-contributed</strong> official pages → approve (ingest) or reject.</td></tr>
+      <tr><td><strong>Directory</strong></td><td>Manage <strong>schools</strong> and <strong>homestay</strong> listings without touching SQL.</td></tr>
+      <tr><td><strong>Users</strong></td><td>List users, view links/invite codes, and <strong>promote/demote</strong> admins.</td></tr>
+    </table>
+    <figure>
+      <div class="mock"><div class="mock-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="url">novara.app/admin/moderation</span></div>
+      <svg viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="300" fill="#fff"/>
+        <rect x="0" y="0" width="180" height="300" fill="#f8fafc"/><line x1="180" y1="0" x2="180" y2="300" stroke="#e2e8f0"/>
+        <g font-size="12.5" font-weight="600">
+          <rect x="14" y="20" width="152" height="30" rx="7" fill="#eff6ff"/><text x="28" y="40" fill="#1d4ed8">⚑ Moderation</text>
+          <text x="28" y="78" fill="#475569">✓ Verification</text>
+          <text x="28" y="108" fill="#475569">📚 Knowledge base</text>
+          <text x="28" y="138" fill="#475569">🏫 Directory</text>
+          <text x="28" y="168" fill="#475569">👤 Users</text>
+        </g>
+        <text x="206" y="40" font-size="16" font-weight="800" fill="#0f172a">Flagged queue <tspan fill="#e02424">· 3</tspan></text>
+        <rect x="206" y="58" width="566" height="70" rx="11" fill="#fff" stroke="#e2e8f0"/>
+        <rect x="222" y="74" width="70" height="22" rx="6" fill="#fef2f2"/><text x="257" y="89" font-size="11" font-weight="700" fill="#e02424" text-anchor="middle">flagged</text>
+        <text x="306" y="82" font-size="12.5" font-weight="700" fill="#0f172a">Comment on “NUS CS offer”</text>
+        <text x="306" y="102" font-size="11.5" fill="#475569">“contact me at …” · possible spam</text>
+        <rect x="566" y="76" width="92" height="34" rx="8" fill="#ecfdf5"/><text x="612" y="98" font-size="11.5" font-weight="700" fill="#059669" text-anchor="middle">Approve</text>
+        <rect x="666" y="76" width="92" height="34" rx="8" fill="#fef2f2"/><text x="712" y="98" font-size="11.5" font-weight="700" fill="#e02424" text-anchor="middle">Remove</text>
+        <rect x="206" y="140" width="566" height="70" rx="11" fill="#fff" stroke="#e2e8f0"/>
+        <rect x="222" y="156" width="70" height="22" rx="6" fill="#fffbeb"/><text x="257" y="171" font-size="11" font-weight="700" fill="#b45309" text-anchor="middle">mismatch</text>
+        <text x="306" y="164" font-size="12.5" font-weight="700" fill="#0f172a">Case · “NTU offer 2026”</text>
+        <text x="306" y="184" font-size="11.5" fill="#475569">proof says “rejected” — review verification</text>
+        <rect x="566" y="158" width="192" height="34" rx="8" fill="#eff6ff"/><text x="662" y="180" font-size="11.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">Open verification →</text>
+        <text x="206" y="244" font-size="11.5" fill="#94a3b8">Actions run with the service role after an is_admin() check — DB-enforced.</text>
+      </svg></div>
+      <figcaption>The moderation queue; sibling tabs handle verification, KB, directory, and users.</figcaption>
+    </figure>
+    <div class="callout note"><div class="t">ℹ️ Becoming an admin</div><p>The first admin is set once by a database update; after that, existing admins promote others from the <strong>Users</strong> module. Self-promotion is blocked at the database level.</p></div>
+  </section>
+
+  <!-- ───────────────────────── FAQ ───────────────────────── -->
+  <section id="faq">
+    <h2>FAQ</h2>
+    <h3>Is my data private?</h3>
+    <p>Yes. Row-level security scopes data to its owner; documents and admission proofs are private to you; parents see only what linking grants, read-only.</p>
+    <h3>What does “verified” mean on a case?</h3>
+    <p>You uploaded a proof document and the AI confirmed it supports your claimed school and result. Only verified cases count in positioning stats and feed the wiki.</p>
+    <h3>Does Novara email me?</h3>
+    <p>No. Notifications are in-app; family connection is the web dashboard and WeChat-friendly sharing.</p>
+    <h3>Why couldn't a university link be read automatically?</h3>
+    <p>Some official pages block automated fetching. When that happens, paste the page text or upload a screenshot/PDF — the assistant works the same way.</p>
+
+    <hr/>
+    <p class="toc-note">Novara — Singapore education journey, guided. · This playbook reflects features shipped to date.</p>
+  </section>
+
+</div></main>
+
+<script>
+  // Smooth-close mobile nav on link tap
+  document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>document.body.classList.remove('nav-open')));
+  // Scrollspy
+  const links = [...document.querySelectorAll('.nav a')];
+  const map = new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        links.forEach(l=>l.classList.remove('active'));
+        const a = map.get(e.target.id); if(a) a.classList.add('active');
+      }
+    });
+  },{rootMargin:'-20% 0px -70% 0px',threshold:0});
+  document.querySelectorAll('section[id]').forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>
