@@ -62,19 +62,32 @@ function daysUntil(dateStr: string, today: string) {
 
 // ── Add Event Modal ───────────────────────────────────────────────────────────
 
-function AddEventModal({ onAdd, onClose }: { onAdd: (e: CalEvent) => void | Promise<void>; onClose: () => void }) {
+function AddEventModal({ onAdd, onClose, existingEvents }: { onAdd: (e: CalEvent) => void | Promise<void>; onClose: () => void; existingEvents: CalEvent[] }) {
   const [title,      setTitle]      = useState('')
   const [date,       setDate]       = useState(todayStr())
   const [type,       setType]       = useState<EventType>('personal')
   const [notes,      setNotes]      = useState('')
   const [startTime,  setStartTime]  = useState('09:00')
   const [endTime,    setEndTime]    = useState('10:00')
+  const [conflictWith, setConflictWith] = useState<CalEvent | null>(null)
 
   function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!title.trim() || !date) return
-    onAdd({ id: `ev-${Date.now()}`, title: title.trim(), date, type, notes: notes.trim() || undefined, start_time: startTime, end_time: endTime })
-    onClose()
+  e.preventDefault()
+  if (!title.trim() || !date) return
+
+  const conflict = existingEvents.find(ev => {
+    if (ev.date !== date) return false
+    if (!ev.start_time || !ev.end_time) return false
+    return startTime < ev.end_time && endTime > ev.start_time
+  })
+
+  if (conflict && !conflictWith) {
+    setConflictWith(conflict)
+    return
+  }
+
+  onAdd({ id: `ev-${Date.now()}`, title: title.trim(), date, type, notes: notes.trim() || undefined, start_time: startTime, end_time: endTime })
+  onClose()
   }
 
   return (
@@ -123,6 +136,11 @@ function AddEventModal({ onAdd, onClose }: { onAdd: (e: CalEvent) => void | Prom
               placeholder="Optional details…"
               className="w-full px-3 py-2 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] text-[var(--t900)] focus:outline-none focus:border-[var(--blue)] resize-none placeholder:text-[var(--t300)]" />
           </div>
+          {conflictWith && (
+            <div className="p-3 rounded-[8px] bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+              ⚠️ This conflicts with <span className="font-bold">{conflictWith.title}</span> ({conflictWith.start_time?.slice(0,5)}–{conflictWith.end_time?.slice(0,5)}). Add anyway?
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="px-4 py-2 rounded-[8px] text-[13px] font-semibold text-[var(--t700)] border border-[var(--border)] bg-white hover:bg-[var(--bg)]">
@@ -130,7 +148,7 @@ function AddEventModal({ onAdd, onClose }: { onAdd: (e: CalEvent) => void | Prom
             </button>
             <button type="submit"
               className="px-4 py-2 rounded-[8px] text-[13px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)]">
-              Add Event
+              {conflictWith ? 'Add Anyway' : 'Add Event'}
             </button>
           </div>
         </form>
@@ -536,6 +554,7 @@ const dayHours = useMemo(() =>
       </div>
 
       {showModal && <AddEventModal
+        existingEvents={events}
         onAdd={async ev => {
           setEvents(p => [...p, ev])
           const TYPE_DB: Record<string, string> = {
