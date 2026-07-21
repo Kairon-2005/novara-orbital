@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { groupNavItems, togglePin } from '@/lib/nav'
 import { ProfileMenu } from './ProfileMenu'
+import { useLocale } from './LocaleProvider'
 
 const PINS_STORAGE_KEY = 'novara-nav-pins'
 
@@ -29,6 +30,7 @@ interface SidebarProps {
 
 export function Sidebar({ items, userName, userEmail, isParent, childName, generationsUsed }: SidebarProps) {
   const pathname = usePathname()
+  const locale = useLocale()
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState<string[]>([])
 
@@ -84,15 +86,15 @@ export function Sidebar({ items, userName, userEmail, isParent, childName, gener
       <div className="px-4 py-[18px] border-b border-[var(--border)]">
         <div className="font-display font-bold text-[18px] text-[var(--t900)] leading-none">Novara</div>
         {isParent
-          ? <div className="text-[10px] font-bold text-[#C81E1E] font-cn mt-1">家长端</div>
-          : <div className="text-[9px] font-semibold text-[var(--t300)] uppercase tracking-widest mt-1">Student</div>
+          ? <div className="text-[10px] font-bold text-[#C81E1E] font-cn mt-1">{locale === 'zh' ? '家长端' : 'Parent Portal'}</div>
+          : <div className="text-[9px] font-semibold text-[var(--t300)] uppercase tracking-widest mt-1">{locale === 'zh' ? '学生端' : 'Student'}</div>
         }
       </div>
 
       {/* Parent viewing child banner */}
       {isParent && childName && (
         <div className="mx-3 mt-3 px-3 py-2 bg-[var(--blue-50)] border border-[var(--blue-100)] rounded-lg">
-          <div className="text-[10px] text-[var(--t500)] font-cn">正在查看</div>
+          <div className="text-[10px] text-[var(--t500)] font-cn">{locale === 'zh' ? '正在查看' : 'Viewing'}</div>
           <div className="text-[13px] font-semibold text-[var(--blue)] font-cn">{childName}</div>
         </div>
       )}

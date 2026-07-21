@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { createBrowserClient } from '@/db/client'
+import { useLocale } from '@/components/shared/LocaleProvider'
+import { LOCALE_COOKIE } from '@/lib/locale'
 
 // The account menu opened from the sidebar avatar. Its own labels are bilingual
 // so the language toggle has an immediate, real effect; the chosen locale is
@@ -41,14 +43,8 @@ export function ProfileMenu({
   const ref = useRef<HTMLDivElement>(null)
 
   const [open, setOpen] = useState(false)
-  const [lang, setLang] = useState<Lang>(isParent ? 'zh' : 'en')
+  const lang = useLocale()
   const [signingOut, setSigningOut] = useState(false)
-
-  // Restore the saved locale preference on mount.
-  useEffect(() => {
-    const saved = window.localStorage.getItem('novara_locale')
-    if (saved === 'en' || saved === 'zh') setLang(saved)
-  }, [])
 
   // Close on outside click or Escape.
   useEffect(() => {
@@ -66,11 +62,12 @@ export function ProfileMenu({
   }, [open])
 
   function chooseLang(next: Lang) {
-    setLang(next)
     try {
       window.localStorage.setItem('novara_locale', next)
-      document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000; samesite=lax`
+      document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`
     } catch { /* storage may be unavailable */ }
+    // Server components re-render with the new cookie; LocaleProvider follows.
+    router.refresh()
   }
 
   async function handleSignOut() {

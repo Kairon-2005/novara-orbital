@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/db/server'
 import { Sidebar } from '@/components/shared/Sidebar'
+import { LocaleProvider } from '@/components/shared/LocaleProvider'
+import { getLocale } from '@/lib/locale-server'
 
 function Icon({ d }: { d: string }) {
   return (
@@ -18,6 +20,15 @@ const NAV_ITEMS = [
   { href: '/parent/universities', label: '目标大学',  d: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 0 1 .665 6.479A11.952 11.952 0 0 0 12 20.055a11.952 11.952 0 0 0-6.824-2.998 12.078 12.078 0 0 1 .665-6.479L12 14z' },
   { href: '/parent/comms',        label: '沟通中心',  d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
 ]
+
+// English labels for the same nav (locale-switchable).
+const NAV_EN: Record<string, string> = {
+  '/parent/dashboard': 'Overview',
+  '/parent/roadmap': 'Roadmap',
+  '/parent/finance': 'Finance',
+  '/parent/universities': 'Universities',
+  '/parent/comms': 'School Comms',
+}
 
 export default async function ParentLayout({ children }: { children: React.ReactNode }) {
   const supabase = createServerClient()
@@ -50,17 +61,19 @@ export default async function ParentLayout({ children }: { children: React.React
     childName = child?.display_name ?? undefined
   }
 
+  const locale = getLocale('zh')
   const navItems = NAV_ITEMS.map(item => ({
     href: item.href,
-    label: item.label,
+    label: locale === 'en' ? NAV_EN[item.href] ?? item.label : item.label,
     icon: <Icon d={item.d} />,
   }))
 
   return (
+    <LocaleProvider locale={locale}>
     <div className="app-layout">
       <Sidebar
         items={navItems}
-        userName={profile?.display_name ?? user.email ?? '家长'}
+        userName={profile?.display_name ?? user.email ?? (locale === 'zh' ? '家长' : 'Parent')}
         userEmail={user.email ?? undefined}
         isParent
         childName={childName}
@@ -69,5 +82,6 @@ export default async function ParentLayout({ children }: { children: React.React
         {children}
       </main>
     </div>
+    </LocaleProvider>
   )
 }
