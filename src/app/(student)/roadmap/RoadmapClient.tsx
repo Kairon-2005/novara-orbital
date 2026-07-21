@@ -4,9 +4,126 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
+import { useLocale } from '@/components/shared/LocaleProvider'
+import type { Locale } from '@/lib/locale'
 import { summarizeProgress } from '@/lib/gamification'
 import type { MockMilestone, MilestoneType, MockAchievement, MockDocument } from '@/types/models'
 import type { GeneratedRoadmap, RoadmapYear } from '@/types/roadmap'
+
+// ── copy ─────────────────────────────────────────────────────────────────────
+
+const T = {
+  en: {
+    types: { exam: 'Exam', competition: 'Competition', cca: 'CCA', application: 'Application', academic: 'Academic', other: 'Other' },
+    enrolmentSub: 'Target university enrolment 🎓',
+    currentYearSub: 'Current year · build your foundation',
+    yearsToGo: (n: number) => `${n} year${n === 1 ? '' : 's'} to enrolment`,
+    continuingSub: 'Continuing milestones',
+    yearLabel: (i: number, y: number) => `Year ${i} — ${y}`,
+    markIncomplete: 'Mark incomplete',
+    markComplete: 'Mark complete (+50 XP)',
+    addToCalendar: 'Add to calendar',
+    calAdded: '✓ Added',
+    cal: 'Cal',
+    deleteMilestone: 'Delete milestone',
+    newMilestone: (y: number) => `New milestone — ${y}`,
+    type: 'Type',
+    dueDate: 'Due Date',
+    titleReq: 'Title *',
+    notesOptional: 'Notes (optional)',
+    titlePlaceholder: 'e.g. Submit UCAS application',
+    notesPlaceholder: 'Extra details…',
+    cancel: 'Cancel',
+    addMilestone: '+ Add Milestone',
+    current: 'Current',
+    complete: 'Complete',
+    doneCount: (d: number, t: number) => `${d}/${t} done`,
+    zeroMilestones: '0 milestones',
+    noMilestonesYet: 'No milestones yet. Add one below.',
+    aiPreviewTitle: 'AI-Generated Roadmap Preview',
+    aiGenerating: 'Generating your personalised roadmap…',
+    aiSummary: (ms: number, yrs: number) => `${ms} milestones across ${yrs} years`,
+    aiCrafting: 'Qwen AI is crafting your roadmap…',
+    adoptNote: 'Adopting will replace your current milestones with these AI suggestions.',
+    dismiss: 'Dismiss',
+    saving: 'Saving…',
+    adopt: '✓ Adopt this roadmap',
+    genFailed: 'Generation failed',
+    emptyRoadmap: 'The AI returned an empty roadmap. Please try again.',
+    networkError: 'Network error. Please try again.',
+    adoptedTitle: '🚀 Roadmap adopted!',
+    adoptedDesc: 'Your milestones are now being tracked.',
+    saveFailed: 'Save failed',
+    networkSaveError: 'Network error while saving.',
+    updateFailedTitle: 'Could not update milestone',
+    tryAgain: 'Please try again.',
+    msCompleteTitle: '🎉 Milestone complete!',
+    msCompleteDesc: '+50 XP — keep your orbit on track.',
+    calFailedTitle: 'Could not add to calendar',
+    calAddedTitle: 'Added to calendar',
+    pageTitle: 'Your Academic Roadmap',
+    pageSub: 'UCL Computer Science · IB Diploma · 4-year plan',
+    generateWithAi: 'Generate with AI',
+    exportPdf: 'Export PDF',
+    milestonesDone: (d: number, t: number) => `${d}/${t} milestones done`,
+  },
+  zh: {
+    types: { exam: '考试', competition: '竞赛', cca: '课外活动', application: '申请', academic: '学业', other: '其他' },
+    enrolmentSub: '目标大学入学年 🎓',
+    currentYearSub: '当前年份 · 打好基础',
+    yearsToGo: (n: number) => `距入学还有 ${n} 年`,
+    continuingSub: '后续里程碑',
+    yearLabel: (i: number, y: number) => `第 ${i} 年 — ${y}`,
+    markIncomplete: '标记为未完成',
+    markComplete: '标记完成（+50 XP）',
+    addToCalendar: '添加到日历',
+    calAdded: '✓ 已添加',
+    cal: '日历',
+    deleteMilestone: '删除里程碑',
+    newMilestone: (y: number) => `新建里程碑 — ${y}`,
+    type: '类型',
+    dueDate: '截止日期',
+    titleReq: '标题 *',
+    notesOptional: '备注（可选）',
+    titlePlaceholder: '例如：提交 UCAS 申请',
+    notesPlaceholder: '补充说明…',
+    cancel: '取消',
+    addMilestone: '+ 添加里程碑',
+    current: '当前',
+    complete: '已完成',
+    doneCount: (d: number, t: number) => `已完成 ${d}/${t}`,
+    zeroMilestones: '0 个里程碑',
+    noMilestonesYet: '还没有里程碑，在下方添加一个吧。',
+    aiPreviewTitle: 'AI 生成路线图预览',
+    aiGenerating: '正在为你生成专属路线图…',
+    aiSummary: (ms: number, yrs: number) => `${yrs} 年共 ${ms} 个里程碑`,
+    aiCrafting: 'Qwen AI 正在为你规划路线图…',
+    adoptNote: '采用后，这些 AI 建议将替换你当前的里程碑。',
+    dismiss: '关闭',
+    saving: '保存中…',
+    adopt: '✓ 采用这份路线图',
+    genFailed: '生成失败',
+    emptyRoadmap: 'AI 返回了空的路线图，请重试。',
+    networkError: '网络错误，请重试。',
+    adoptedTitle: '🚀 路线图已采用！',
+    adoptedDesc: '你的里程碑已开始跟踪。',
+    saveFailed: '保存失败',
+    networkSaveError: '保存时网络出错。',
+    updateFailedTitle: '里程碑更新失败',
+    tryAgain: '请重试。',
+    msCompleteTitle: '🎉 里程碑完成！',
+    msCompleteDesc: '+50 XP — 继续保持你的轨道。',
+    calFailedTitle: '添加到日历失败',
+    calAddedTitle: '已添加到日历',
+    pageTitle: '你的学业路线图',
+    pageSub: 'UCL 计算机科学 · IB 文凭 · 4 年规划',
+    generateWithAi: 'AI 生成',
+    exportPdf: '导出 PDF',
+    milestonesDone: (d: number, t: number) => `已完成 ${d}/${t} 个里程碑`,
+  },
+} satisfies Record<Locale, unknown>
+
+type Dict = (typeof T)[Locale]
 
 // ── Type config ───────────────────────────────────────────────────────────────
 
@@ -38,7 +155,7 @@ interface RoadmapClientProps {
 
 // Builds the timeline columns: every calendar year from now to enrolment,
 // plus any year a milestone actually falls in (so nothing is hidden).
-function buildYearMetas(currentYear: number, enrollmentYear: number, milestoneYears: number[]) {
+function buildYearMetas(currentYear: number, enrollmentYear: number, milestoneYears: number[], t: Dict) {
   const end = Math.max(enrollmentYear, currentYear)
   const set = new Set<number>()
   for (let y = currentYear; y <= end; y++) set.add(y)
@@ -47,13 +164,13 @@ function buildYearMetas(currentYear: number, enrollmentYear: number, milestoneYe
   return years.map((y, i) => {
     const toGo = enrollmentYear - y
     const subtitle =
-      y === enrollmentYear ? 'Target university enrolment 🎓'
-      : y === currentYear  ? 'Current year · build your foundation'
-      : toGo > 0           ? `${toGo} year${toGo === 1 ? '' : 's'} to enrolment`
-      :                      'Continuing milestones'
+      y === enrollmentYear ? t.enrolmentSub
+      : y === currentYear  ? t.currentYearSub
+      : toGo > 0           ? t.yearsToGo(toGo)
+      :                      t.continuingSub
     return {
       year: y,
-      yearLabel: `Year ${i + 1} — ${y}`,
+      yearLabel: t.yearLabel(i + 1, y),
       subtitle,
       defaultOpen: y === currentYear,
     }
@@ -78,6 +195,7 @@ function MilestoneRow({ ms, onToggle, onDelete, onAddToCalendar }: {
   onDelete: (id: string) => void
   onAddToCalendar: (id: string) => void
 }) {
+  const t = T[useLocale()]
   const [calAdded, setCalAdded] = useState(false)
   const tc = TYPE_CONFIG[ms.type]
   const today = new Date().toISOString().slice(0, 10)
@@ -93,7 +211,7 @@ function MilestoneRow({ ms, onToggle, onDelete, onAddToCalendar }: {
     <div className="flex items-start gap-[10px] px-[10px] py-[8px] rounded-[8px] transition-colors hover:bg-[var(--bg)] group">
       <button
         onClick={() => onToggle(ms.id)}
-        title={ms.completed ? 'Mark incomplete' : 'Mark complete (+50 XP)'}
+        title={ms.completed ? t.markIncomplete : t.markComplete}
         className="w-[20px] h-[20px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-[2px] transition-all"
         style={{
           background:  ms.completed ? 'var(--green)' : isActive ? 'var(--blue)' : 'white',
@@ -134,25 +252,25 @@ function MilestoneRow({ ms, onToggle, onDelete, onAddToCalendar }: {
         )}
         <span className="inline-flex items-center px-[7px] py-0.5 rounded-[5px] text-[10px] font-semibold"
           style={{ background: tc.bg, color: tc.color }}>
-          {tc.label}
+          {t.types[ms.type]}
         </span>
         {/* Add to calendar */}
         {ms.due_date && (
           <button
             onClick={handleCal}
-            title="Add to calendar"
+            title={t.addToCalendar}
             className="opacity-0 group-hover:opacity-100 transition flex items-center gap-0.5 text-[10px] font-semibold px-[6px] py-0.5 rounded-[5px]"
             style={{
               background: calAdded ? 'var(--green-50)' : 'var(--blue-50)',
               color:      calAdded ? 'var(--green)'    : 'var(--blue)',
             }}
           >
-            {calAdded ? '✓ Added' : (
+            {calAdded ? t.calAdded : (
               <>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                Cal
+                {t.cal}
               </>
             )}
           </button>
@@ -160,7 +278,7 @@ function MilestoneRow({ ms, onToggle, onDelete, onAddToCalendar }: {
         <button
           onClick={() => onDelete(ms.id)}
           className="opacity-0 group-hover:opacity-100 text-[var(--t300)] hover:text-[var(--red)] transition ml-0.5"
-          title="Delete milestone"
+          title={t.deleteMilestone}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 6L6 18M6 6l12 12"/>
@@ -176,6 +294,7 @@ function MilestoneRow({ ms, onToggle, onDelete, onAddToCalendar }: {
 function AddMilestoneForm({ year, onAdd, onCancel }: {
   year: number; onAdd: (m: MockMilestone) => void; onCancel: () => void
 }) {
+  const t = T[useLocale()]
   const [title, setTitle] = useState('')
   const [type, setType]   = useState<MilestoneType>('academic')
   const [desc, setDesc]   = useState('')
@@ -194,30 +313,30 @@ function AddMilestoneForm({ year, onAdd, onCancel }: {
 
   return (
     <form onSubmit={submit} className="mt-3 mb-1 p-4 bg-[var(--blue-50)] border border-[var(--blue-100)] rounded-[10px] flex flex-col gap-3">
-      <div className="font-display font-semibold text-[12px] text-[var(--blue)]">New milestone — {year}</div>
+      <div className="font-display font-semibold text-[12px] text-[var(--blue)]">{t.newMilestone(year)}</div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Type</label>
+          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">{t.type}</label>
           <select value={type} onChange={e => setType(e.target.value as MilestoneType)} className={inputCls} style={{ cursor: 'pointer' }}>
-            {Object.entries(TYPE_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            {Object.keys(TYPE_CONFIG).map(k => <option key={k} value={k}>{t.types[k as MilestoneType]}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Due Date</label>
+          <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">{t.dueDate}</label>
           <input type="date" value={due} onChange={e => setDue(e.target.value)} className={inputCls} />
         </div>
       </div>
       <div>
-        <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Title *</label>
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Submit UCAS application" className={inputCls} />
+        <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">{t.titleReq}</label>
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t.titlePlaceholder} className={inputCls} />
       </div>
       <div>
-        <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">Notes (optional)</label>
-        <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Extra details…" className={inputCls} />
+        <label className="block text-[11px] font-semibold text-[var(--t700)] mb-1">{t.notesOptional}</label>
+        <input value={desc} onChange={e => setDesc(e.target.value)} placeholder={t.notesPlaceholder} className={inputCls} />
       </div>
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-[7px] text-[12px] font-semibold text-[var(--t500)] hover:bg-white transition">Cancel</button>
-        <button type="submit" className="px-4 py-2 rounded-[7px] text-[12px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)] transition">+ Add Milestone</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-[7px] text-[12px] font-semibold text-[var(--t500)] hover:bg-white transition">{t.cancel}</button>
+        <button type="submit" className="px-4 py-2 rounded-[7px] text-[12px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)] transition">{t.addMilestone}</button>
       </div>
     </form>
   )
@@ -231,6 +350,7 @@ function YearBlock({ year, yearLabel, subtitle, milestones, isCurrentYear, defau
   onToggle: (id: string) => void; onDelete: (id: string) => void; onAdd: (m: MockMilestone) => void
   onAddToCalendar: (id: string) => void
 }) {
+  const t = T[useLocale()]
   const [open, setOpen]         = useState(defaultOpen)
   const [showForm, setShowForm] = useState(false)
 
@@ -262,18 +382,18 @@ function YearBlock({ year, yearLabel, subtitle, milestones, isCurrentYear, defau
           <div className="font-display font-bold text-[14px] text-[var(--t900)] flex items-center gap-2">
             {yearLabel}
             {isCurrentYear && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--blue)] text-white">Current</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--blue)] text-white">{t.current}</span>
             )}
           </div>
           <div className="text-[12px] text-[var(--t500)]">{subtitle}</div>
         </div>
         <div className="flex items-center gap-2">
           {allDone ? (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[11px] font-semibold bg-[var(--green-50)] text-[var(--green)]">Complete</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[11px] font-semibold bg-[var(--green-50)] text-[var(--green)]">{t.complete}</span>
           ) : total > 0 ? (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[11px] font-semibold bg-[var(--blue-50)] text-[var(--blue)]">{done}/{total} done</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[11px] font-semibold bg-[var(--blue-50)] text-[var(--blue)]">{t.doneCount(done, total)}</span>
           ) : (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[11px] font-semibold bg-[#F3F4F6] text-[var(--t500)]">0 milestones</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[11px] font-semibold bg-[#F3F4F6] text-[var(--t500)]">{t.zeroMilestones}</span>
           )}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t300)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
             style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>
@@ -285,11 +405,10 @@ function YearBlock({ year, yearLabel, subtitle, milestones, isCurrentYear, defau
         <div className="bg-white border border-[var(--border)] border-t-0 rounded-b-[10px] px-[18px] pb-[16px]">
           {Object.entries(byType).length > 0 ? (
             Object.entries(byType).map(([type, items]) => {
-              const tc = TYPE_CONFIG[type as MilestoneType]
               return (
                 <div key={type} className="mt-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-bold text-[var(--t300)] uppercase tracking-widest">{tc.label}</span>
+                    <span className="text-[10px] font-bold text-[var(--t300)] uppercase tracking-widest">{t.types[type as MilestoneType]}</span>
                     <div className="flex-1 h-px bg-[var(--border)]" />
                   </div>
                   {items.map(m => (
@@ -299,7 +418,7 @@ function YearBlock({ year, yearLabel, subtitle, milestones, isCurrentYear, defau
               )
             })
           ) : (
-            <div className="py-4 text-center text-[12px] text-[var(--t500)]">No milestones yet. Add one below.</div>
+            <div className="py-4 text-center text-[12px] text-[var(--t500)]">{t.noMilestonesYet}</div>
           )}
           {showForm ? (
             <AddMilestoneForm
@@ -312,7 +431,7 @@ function YearBlock({ year, yearLabel, subtitle, milestones, isCurrentYear, defau
               onClick={() => setShowForm(true)}
               className="mt-4 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-[7px] border-[1.5px] border-dashed border-[var(--border)] text-[12px] font-medium text-[var(--t300)] hover:border-[var(--blue)] hover:text-[var(--blue)] transition"
             >
-              + Add Milestone
+              {t.addMilestone}
             </button>
           )}
         </div>
@@ -336,6 +455,7 @@ function AiRoadmapModal({
   onAdopt: () => void
   onClose: () => void
 }) {
+  const t = T[useLocale()]
   const totalMs = roadmap?.years.reduce((n, y) => n + y.milestones.length, 0) ?? 0
 
   return (
@@ -348,9 +468,9 @@ function AiRoadmapModal({
         {/* Header */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-[var(--border)]">
           <div>
-            <div className="font-display font-bold text-[16px] text-[var(--t900)]">AI-Generated Roadmap Preview</div>
+            <div className="font-display font-bold text-[16px] text-[var(--t900)]">{t.aiPreviewTitle}</div>
             <div className="text-[12px] text-[var(--t500)] mt-0.5">
-              {loading ? 'Generating your personalised roadmap…' : `${totalMs} milestones across ${roadmap?.years.length ?? 0} years`}
+              {loading ? t.aiGenerating : t.aiSummary(totalMs, roadmap?.years.length ?? 0)}
             </div>
           </div>
           <button onClick={onClose} className="text-[var(--t300)] hover:text-[var(--t700)] p-1 transition">
@@ -368,7 +488,7 @@ function AiRoadmapModal({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
               </svg>
-              <p className="text-[13px] text-[var(--t500)]">Qwen AI is crafting your roadmap…</p>
+              <p className="text-[13px] text-[var(--t500)]">{t.aiCrafting}</p>
             </div>
           )}
           {!loading && roadmap && roadmap.years.map((yr: RoadmapYear) => (
@@ -389,7 +509,7 @@ function AiRoadmapModal({
                     <div key={i} className="flex items-start gap-2 bg-[var(--bg)] rounded-[7px] px-3 py-2">
                       <span className="inline-flex items-center px-[6px] py-0.5 rounded-[4px] text-[10px] font-semibold flex-shrink-0 mt-0.5"
                         style={{ background: tc.bg, color: tc.color }}>
-                        {tc.label}
+                        {t.types[ms.type as MilestoneType] ?? t.types.other}
                       </span>
                       <div>
                         <div className="text-[12px] font-medium text-[var(--t900)]">{ms.title}</div>
@@ -406,10 +526,10 @@ function AiRoadmapModal({
         {/* Footer */}
         {!loading && roadmap && (
           <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-between gap-3">
-            <p className="text-[11px] text-[var(--t500)]">Adopting will replace your current milestones with these AI suggestions.</p>
+            <p className="text-[11px] text-[var(--t500)]">{t.adoptNote}</p>
             <div className="flex gap-2 flex-shrink-0">
               <button onClick={onClose} className="px-4 py-2 rounded-[8px] text-[12px] font-semibold border border-[var(--border)] text-[var(--t500)] hover:bg-[var(--bg)] transition">
-                Dismiss
+                {t.dismiss}
               </button>
               <button
                 onClick={onAdopt}
@@ -422,9 +542,9 @@ function AiRoadmapModal({
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                     </svg>
-                    Saving…
+                    {t.saving}
                   </>
-                ) : '✓ Adopt this roadmap'}
+                ) : t.adopt}
               </button>
             </div>
           </div>
@@ -442,6 +562,8 @@ export default function RoadmapClient({
   const supabase = createBrowserClient()
   const router   = useRouter()
   const toast    = useToast()
+  const locale   = useLocale()
+  const t        = T[locale]
   const [milestones, setMilestones] = useState<MockMilestone[]>(initialMilestones)
 
   // ── AI generate state ─────────────────────────────────────────
@@ -462,13 +584,20 @@ export default function RoadmapClient({
       const json = await res.json() as { roadmap?: GeneratedRoadmap; error?: string; message?: string }
 
       if (!res.ok) {
-        setAiError(json.message ?? json.error ?? 'Generation failed')
-        setAiLoading(false)
+        // Close the modal so the error surfaces as a toast instead of a blank dialog.
+        setShowAiModal(false)
+        setAiError(json.message ?? json.error ?? t.genFailed)
         return
       }
-      setAiRoadmap(json.roadmap ?? null)
+      if (!json.roadmap?.years?.length) {
+        setShowAiModal(false)
+        setAiError(t.emptyRoadmap)
+        return
+      }
+      setAiRoadmap(json.roadmap)
     } catch {
-      setAiError('Network error. Please try again.')
+      setShowAiModal(false)
+      setAiError(t.networkError)
     } finally {
       setAiLoading(false)
     }
@@ -486,15 +615,15 @@ export default function RoadmapClient({
       })
       if (res.ok) {
         setShowAiModal(false)
-        toast({ title: '🚀 Roadmap adopted!', description: 'Your milestones are now being tracked.', variant: 'success' })
+        toast({ title: t.adoptedTitle, description: t.adoptedDesc, variant: 'success' })
         // Reload to pull fresh milestones from DB
         router.refresh()
       } else {
         const json = await res.json() as { error?: string }
-        setAiError(json.error ?? 'Save failed')
+        setAiError(json.error ?? t.saveFailed)
       }
     } catch {
-      setAiError('Network error while saving.')
+      setAiError(t.networkSaveError)
     } finally {
       setAiSaving(false)
     }
@@ -502,7 +631,7 @@ export default function RoadmapClient({
 
   const { xp, level: lvl } = summarizeProgress({ achievements: initialAchievements, milestones, documents })
 
-  const yearMetas = buildYearMetas(currentYear, enrollmentYear, milestones.map(m => m.year))
+  const yearMetas = buildYearMetas(currentYear, enrollmentYear, milestones.map(m => m.year), t)
 
   const done  = milestones.filter(m => m.completed).length
   const total = milestones.length
@@ -516,11 +645,11 @@ export default function RoadmapClient({
     if (error) {
       // Revert the optimistic update on failure
       setMilestones(prev => prev.map(x => x.id === id ? { ...x, completed: !next } : x))
-      toast({ title: 'Could not update milestone', description: 'Please try again.', variant: 'error' })
+      toast({ title: t.updateFailedTitle, description: t.tryAgain, variant: 'error' })
       return
     }
     if (next) {
-      toast({ title: '🎉 Milestone complete!', description: '+50 XP — keep your orbit on track.', variant: 'success' })
+      toast({ title: t.msCompleteTitle, description: t.msCompleteDesc, variant: 'success' })
     }
   }
 
@@ -541,8 +670,8 @@ export default function RoadmapClient({
       notes:      m.description || null,
     })
     toast(error
-      ? { title: 'Could not add to calendar', description: 'Please try again.', variant: 'error' }
-      : { title: 'Added to calendar', description: m.title, variant: 'success' })
+      ? { title: t.calFailedTitle, description: t.tryAgain, variant: 'error' }
+      : { title: t.calAddedTitle, description: m.title, variant: 'success' })
   }
 
   async function handleAdd(m: MockMilestone) {
@@ -589,8 +718,8 @@ export default function RoadmapClient({
 
       <div className="bg-white border-b border-[var(--border)] px-9 h-14 flex items-center justify-between sticky top-0 z-50">
         <div>
-          <div className="font-display font-bold text-[17px] text-[var(--t900)]">Your Academic Roadmap</div>
-          <div className="text-[11px] text-[var(--t500)] mt-0.5">UCL Computer Science · IB Diploma · 4-year plan</div>
+          <div className="font-display font-bold text-[17px] text-[var(--t900)]">{t.pageTitle}</div>
+          <div className="text-[11px] text-[var(--t500)] mt-0.5">{t.pageSub}</div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -600,10 +729,10 @@ export default function RoadmapClient({
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
             </svg>
-            Generate with AI
+            {t.generateWithAi}
           </button>
           <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold border border-[var(--border)] text-[var(--t500)] bg-white hover:border-[var(--blue)] hover:text-[var(--blue)] transition">
-            Export PDF
+            {t.exportPdf}
           </button>
         </div>
       </div>
@@ -615,7 +744,7 @@ export default function RoadmapClient({
               { text: '🎓 UCL Computer Science', bg: 'var(--blue-50)', color: 'var(--blue)' },
               { text: '📚 IB Diploma', bg: 'var(--blue-50)', color: 'var(--blue)' },
               { text: '🏫 ACS International', bg: 'var(--blue-50)', color: 'var(--blue)' },
-              { text: `${done}/${total} milestones done`, bg: done === total && total > 0 ? 'var(--green-50)' : 'var(--blue-50)', color: done === total && total > 0 ? 'var(--green)' : 'var(--blue)' },
+              { text: t.milestonesDone(done, total), bg: done === total && total > 0 ? 'var(--green-50)' : 'var(--blue-50)', color: done === total && total > 0 ? 'var(--green)' : 'var(--blue)' },
             ].map(b => (
               <span key={b.text} className="inline-flex items-center px-2.5 py-1 rounded-[6px] text-[11px] font-semibold"
                 style={{ background: b.bg, color: b.color }}>

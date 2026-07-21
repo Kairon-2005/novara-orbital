@@ -1,5 +1,6 @@
 // Server Component — fetches child's milestones via parent_links.
 import { createServerClient } from '@/db/server'
+import { getLocale } from '@/lib/locale-server'
 import RoadmapParentClient from './RoadmapParentClient'
 import type { MockMilestone, MockAchievement, MockDocument } from '@/types/models'
 
@@ -72,7 +73,7 @@ export default async function ParentRoadmapPage() {
       achievements={achievements}
       documents={[]}
       child={{
-        displayName: childProfile?.display_name ?? '学生',
+        displayName: childProfile?.display_name ?? (getLocale('zh') === 'zh' ? '学生' : 'Student'),
         school: childSp?.current_school ?? null,
         curriculum: childSp?.current_curriculum ?? null,
       }}

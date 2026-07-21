@@ -2,12 +2,14 @@
 // their feedback history, and targets for linking. The editor and critique
 // flow live in the client component.
 import { createServerClient } from '@/db/server'
+import { getLocale } from '@/lib/locale-server'
 import EssaysClient, { type EssayRow, type FeedbackRow } from './EssaysClient'
 
 export default async function EssaysPage() {
+  const locale = getLocale('en')
   const supabase = createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return <p className="p-10 text-red-500">Not authenticated.</p>
+  if (!user) return <p className="p-10 text-red-500">{locale === 'zh' ? '未登录。' : 'Not authenticated.'}</p>
 
   const [{ data: essays, error }, { data: targets }] = await Promise.all([
     supabase

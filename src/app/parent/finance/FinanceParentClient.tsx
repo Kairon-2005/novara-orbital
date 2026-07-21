@@ -10,6 +10,8 @@ type FeeItem = {
 }
 
 import { useState, useMemo } from 'react'
+import { useLocale } from '@/components/shared/LocaleProvider'
+import type { Locale } from '@/lib/locale'
 // ── Types (mirrors fee_items table) ───────────────────────────────────────────
 
 // ── Shared fee data — same items the student sees, parent gets read + overview
@@ -18,10 +20,10 @@ import { useState, useMemo } from 'react'
 
 const SGD_TO_CNY = 5.28
 
-const STATUS_STYLE: Record<FeeStatus, { bg: string; color: string; zh: string }> = {
-  paid:    { bg: '#F3FAF7', color: '#057A55', zh: '已付款' },
-  pending: { bg: '#FFFBEB', color: '#B45309', zh: '待付款' },
-  overdue: { bg: '#FDF2F2', color: '#E02424', zh: '已逾期' },
+const STATUS_STYLE: Record<FeeStatus, { bg: string; color: string; zh: string; en: string }> = {
+  paid:    { bg: '#F3FAF7', color: '#057A55', zh: '已付款', en: 'Paid' },
+  pending: { bg: '#FFFBEB', color: '#B45309', zh: '待付款', en: 'Pending' },
+  overdue: { bg: '#FDF2F2', color: '#E02424', zh: '已逾期', en: 'Overdue' },
 }
 
 const CAT_EMOJI: Record<string, string> = {
@@ -29,15 +31,89 @@ const CAT_EMOJI: Record<string, string> = {
   activity: '🎽', exam: '📝', other: '📌',
 }
 
-const CAT_ZH: Record<string, string> = {
-  tuition: '学费', homestay: '寄宿费', insurance: '保险',
-  materials: '教材', activity: '活动费', exam: '考试费', other: '其他',
+const CAT_LABEL: Record<Locale, Record<string, string>> = {
+  en: {
+    tuition: 'Tuition', homestay: 'Homestay', insurance: 'Insurance',
+    materials: 'Materials', activity: 'Activities', exam: 'Exam fees', other: 'Other',
+  },
+  zh: {
+    tuition: '学费', homestay: '寄宿费', insurance: '保险',
+    materials: '教材', activity: '活动费', exam: '考试费', other: '其他',
+  },
 }
+
+const T = {
+  en: {
+    pageTitle: 'Fee planner',
+    childFallback: 'Your child',
+    rateLine: `Reference rate: 1 SGD ≈ ${SGD_TO_CNY} CNY`,
+    overdueBadge: (amt: string) => `⚠ Overdue ${amt}`,
+    // Stat cards
+    totalYear: 'Total for the year',
+    paid: 'Paid',
+    pending: 'Pending',
+    itemsCount: (n: number) => `${n} item${n === 1 ? '' : 's'}`,
+    overdue: 'Overdue',
+    settleSoon: 'Please settle soon',
+    paymentCompletion: 'Payment completion',
+    thisSchoolYear: 'This school year',
+    // Progress bar
+    annualProgress: 'Annual payment progress',
+    paidLine: (amt: string, cnyAmt: string) => `Paid ${amt} (${cnyAmt})`,
+    remainingLine: (amt: string, cnyAmt: string) => `Remaining ${amt} (${cnyAmt})`,
+    // Fee list
+    filterLabel: 'Filter:',
+    filterAll: 'All',
+    dueLabel: 'Due: ',
+    // Sidebar
+    dueSoonTitle: '⏰ Due soon',
+    noPendingItems: 'No pending items',
+    overdueShort: 'Overdue',
+    inDays: (n: number) => `in ${n} days`,
+    byCategoryTitle: '📊 By category',
+    payTipTitle: '💡 Payment tips',
+    payTipBody: 'Tuition can be paid via PayNow (UEN: T08CC1234A) or bank transfer. Exchange rates are indicative only — your bank’s rate applies.',
+  },
+  zh: {
+    pageTitle: '费用规划',
+    childFallback: '孩子',
+    rateLine: `参考汇率：1 SGD ≈ ${SGD_TO_CNY} CNY`,
+    overdueBadge: (amt: string) => `⚠ 逾期 ${amt}`,
+    // Stat cards
+    totalYear: '年度总费用',
+    paid: '已付款',
+    pending: '待付款',
+    itemsCount: (n: number) => `${n} 项`,
+    overdue: '已逾期',
+    settleSoon: '请尽快处理',
+    paymentCompletion: '付款完成度',
+    thisSchoolYear: '本学年',
+    // Progress bar
+    annualProgress: '年度付款进度',
+    paidLine: (amt: string, cnyAmt: string) => `已付 ${amt} (${cnyAmt})`,
+    remainingLine: (amt: string, cnyAmt: string) => `剩余 ${amt} (${cnyAmt})`,
+    // Fee list
+    filterLabel: '筛选：',
+    filterAll: '全部',
+    dueLabel: '截止：',
+    // Sidebar
+    dueSoonTitle: '⏰ 即将到期',
+    noPendingItems: '暂无待缴项目',
+    overdueShort: '已逾期',
+    inDays: (n: number) => `${n}天后`,
+    byCategoryTitle: '📊 费用分类',
+    payTipTitle: '💡 付款提示',
+    payTipBody: '学费可通过PayNow（UEN: T08CC1234A）或电汇付款。汇率仅供参考，实际以银行汇率为准。',
+  },
+} satisfies Record<Locale, unknown>
 
 function sgd(n: number) { return `SGD ${n.toLocaleString()}` }
 function cny(n: number) { return `¥ ${Math.round(n * SGD_TO_CNY).toLocaleString()}` }
 
 function FeeRow({ fee }: { fee: FeeItem }) {
+  const locale = useLocale()
+  const t = T[locale]
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-SG'
   const s = STATUS_STYLE[fee.status]
   return (
     <div className={`flex items-center gap-4 px-4 py-3.5 border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg)] ${fee.status === 'overdue' ? 'bg-[#FDF2F2]/40' : ''}`}>
@@ -48,14 +124,14 @@ function FeeRow({ fee }: { fee: FeeItem }) {
         </div>
         {fee.notes_zh && <div className="text-[11px] text-[var(--t500)] mt-0.5">{fee.notes_zh}</div>}
         <div className="text-[11px] text-[var(--t300)] mt-0.5">
-          截止：{new Date(fee.due_date).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+          {t.dueLabel}{new Date(fee.due_date).toLocaleDateString(dateLocale, { year: 'numeric', month: 'long', day: 'numeric' })}
         </div>
       </div>
       <div className="text-right flex-shrink-0">
         <div className="font-display font-bold text-[14px] text-[var(--t900)]">{sgd(fee.amount_sgd)}</div>
         <div className="text-[11px] text-[var(--t300)]">{cny(fee.amount_sgd)}</div>
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold mt-1"
-          style={{ background: s.bg, color: s.color }}>{s.zh}</span>
+          style={{ background: s.bg, color: s.color }}>{s[locale]}</span>
       </div>
     </div>
   )
@@ -66,6 +142,10 @@ interface FinanceParentClientProps {
 }
 
 export default function FinanceParentClient({ initialFees }: FinanceParentClientProps) {
+  const locale = useLocale()
+  const t = T[locale]
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-SG'
+  const catLabel = CAT_LABEL[locale]
   const today = new Date().toISOString().slice(0, 10)
   const mappedFees: FeeItem[] = initialFees.map(f => ({
     id: f.id,
@@ -78,6 +158,7 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
   const [fees] = useState<FeeItem[]>(mappedFees)
   const [filter, setFilter] = useState<FeeStatus | 'all'>('all')
   const child = { display_name: 'Your child', display_name_cn: '孩子', current_school: '' }
+  const childLabel = locale === 'zh' ? child.display_name_cn : t.childFallback
 
   const filtered = useMemo(() => {
     const arr = filter === 'all' ? fees : fees.filter(f => f.status === filter)
@@ -107,14 +188,14 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
 
       <div className="bg-white border-b border-[var(--border)] px-9 h-14 flex items-center justify-between sticky top-0 z-40">
         <div>
-          <div className="font-display font-bold text-[17px] text-[var(--t900)]">费用规划</div>
+          <div className="font-display font-bold text-[17px] text-[var(--t900)]">{t.pageTitle}</div>
           <div className="text-[11px] text-[var(--t500)] mt-0.5">
-            {child.display_name_cn} · {child.current_school} · 参考汇率：1 SGD ≈ {SGD_TO_CNY} CNY
+            {childLabel} · {child.current_school} · {t.rateLine}
           </div>
         </div>
         {overdue > 0 && (
           <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[#FDF2F2] text-[#E02424] text-[12px] font-semibold border border-[#FECACA]">
-            ⚠ 逾期 {sgd(overdue)}
+            {t.overdueBadge(sgd(overdue))}
           </span>
         )}
       </div>
@@ -124,15 +205,15 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
         {/* Stat cards */}
         <div className="grid gap-4 mb-5 grid-cols-2 lg:grid-cols-4">
           {[
-            { zh: '年度总费用', val: sgd(total),   sub: cny(total),       color: 'var(--t900)' },
-            { zh: '已付款',    val: sgd(paid),    sub: `${fees.filter(f=>f.status==='paid').length} 项`,    color: '#057A55' },
-            { zh: '待付款',    val: sgd(pending), sub: `${fees.filter(f=>f.status==='pending').length} 项`, color: '#B45309' },
+            { label: t.totalYear, val: sgd(total),   sub: cny(total),       color: 'var(--t900)' },
+            { label: t.paid,    val: sgd(paid),    sub: t.itemsCount(fees.filter(f=>f.status==='paid').length),    color: '#057A55' },
+            { label: t.pending,    val: sgd(pending), sub: t.itemsCount(fees.filter(f=>f.status==='pending').length), color: '#B45309' },
             overdue > 0
-              ? { zh: '已逾期', val: sgd(overdue), sub: '请尽快处理', color: '#E02424' }
-              : { zh: '付款完成度', val: `${pct}%`, sub: '本学年', color: '#1A56DB' },
+              ? { label: t.overdue, val: sgd(overdue), sub: t.settleSoon, color: '#E02424' }
+              : { label: t.paymentCompletion, val: `${pct}%`, sub: t.thisSchoolYear, color: '#1A56DB' },
           ].map((s, i) => (
             <div key={i} className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-[18px_20px]">
-              <div className="text-[11px] text-[var(--t500)] mb-1">{s.zh}</div>
+              <div className="text-[11px] text-[var(--t500)] mb-1">{s.label}</div>
               <div className="font-display font-bold text-[20px] leading-none mb-0.5" style={{ color: s.color }}>{s.val}</div>
               <div className="text-[11px] text-[var(--t300)]">{s.sub}</div>
             </div>
@@ -142,15 +223,15 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
         {/* Progress bar */}
         <div className="bg-white border border-[var(--border)] rounded-[10px] px-5 py-4 mb-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[13px] font-semibold text-[var(--t900)]">年度付款进度</span>
+            <span className="text-[13px] font-semibold text-[var(--t900)]">{t.annualProgress}</span>
             <span className="text-[12px] font-bold text-[var(--green)]">{pct}%</span>
           </div>
           <div className="h-[10px] bg-[#F3F4F6] rounded-full overflow-hidden">
             <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: 'var(--green)' }} />
           </div>
           <div className="flex justify-between text-[11px] text-[var(--t300)] mt-1.5">
-            <span>已付 {sgd(paid)} ({cny(paid)})</span>
-            <span>剩余 {sgd(total - paid)} ({cny(total - paid)})</span>
+            <span>{t.paidLine(sgd(paid), cny(paid))}</span>
+            <span>{t.remainingLine(sgd(total - paid), cny(total - paid))}</span>
           </div>
         </div>
 
@@ -159,7 +240,7 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
           {/* Fee list */}
           <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border)] flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide mr-1">筛选：</span>
+              <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide mr-1">{t.filterLabel}</span>
               {(['all','overdue','pending','paid'] as const).map(f => (
                 <button key={f} onClick={() => setFilter(f)}
                   className={`px-3 py-1 rounded-full text-[11px] font-medium border-[1.5px] transition-all ${
@@ -167,7 +248,7 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
                       ? 'bg-[var(--blue-50)] text-[var(--blue)] border-[var(--blue)]'
                       : 'bg-white text-[var(--t700)] border-[var(--border)] hover:bg-[var(--bg)]'
                   }`}>
-                  {f === 'all' ? '全部' : STATUS_STYLE[f].zh}
+                  {f === 'all' ? t.filterAll : STATUS_STYLE[f][locale]}
                 </button>
               ))}
             </div>
@@ -179,9 +260,9 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
 
             {/* Upcoming */}
             <div className="bg-white border border-[var(--border)] rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-3">⏰ 即将到期</div>
+              <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-3">{t.dueSoonTitle}</div>
               {upcoming.length === 0 ? (
-                <div className="text-[12px] text-[var(--t300)] text-center py-3">暂无待缴项目</div>
+                <div className="text-[12px] text-[var(--t300)] text-center py-3">{t.noPendingItems}</div>
               ) : upcoming.map(f => {
                 const daysLeft = Math.ceil((new Date(f.due_date).getTime() - Date.now()) / 86_400_000)
                 return (
@@ -189,13 +270,13 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
                     <div>
                       <div className="text-[12px] font-semibold text-[var(--t900)] leading-snug">{f.label_zh}</div>
                       <div className="text-[11px] text-[var(--t500)]">
-                        {new Date(f.due_date).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
+                        {new Date(f.due_date).toLocaleDateString(dateLocale, { month: 'long', day: 'numeric' })}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-[12px] font-bold text-[var(--t900)]">{sgd(f.amount_sgd)}</div>
                       <div className={`text-[10px] font-semibold ${daysLeft <= 14 ? 'text-[#E02424]' : 'text-[var(--t300)]'}`}>
-                        {daysLeft <= 0 ? '已逾期' : `${daysLeft}天后`}
+                        {daysLeft <= 0 ? t.overdueShort : t.inDays(daysLeft)}
                       </div>
                     </div>
                   </div>
@@ -205,10 +286,10 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
 
             {/* By category */}
             <div className="bg-white border border-[var(--border)] rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-3">📊 费用分类</div>
+              <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-3">{t.byCategoryTitle}</div>
               {Object.entries(byCat).map(([cat, amt]) => (
                 <div key={cat} className="flex items-center justify-between py-1.5 border-b border-[var(--border)] last:border-0">
-                  <span className="flex items-center gap-2 text-[12px] text-[var(--t700)]">{CAT_EMOJI[cat]} {CAT_ZH[cat]}</span>
+                  <span className="flex items-center gap-2 text-[12px] text-[var(--t700)]">{CAT_EMOJI[cat]} {catLabel[cat]}</span>
                   <div className="text-right">
                     <div className="text-[12px] font-bold text-[var(--t900)]">{sgd(amt)}</div>
                     <div className="text-[10px] text-[var(--t300)]">{cny(amt)}</div>
@@ -218,9 +299,9 @@ export default function FinanceParentClient({ initialFees }: FinanceParentClient
             </div>
 
             <div className="bg-[var(--blue-50)] border border-[var(--blue-100)] rounded-[10px] p-4">
-              <div className="text-[12px] font-semibold text-[var(--blue)] mb-1">💡 付款提示</div>
+              <div className="text-[12px] font-semibold text-[var(--blue)] mb-1">{t.payTipTitle}</div>
               <div className="text-[12px] text-[var(--t700)] leading-relaxed">
-                学费可通过PayNow（UEN: T08CC1234A）或电汇付款。汇率仅供参考，实际以银行汇率为准。
+                {t.payTipBody}
               </div>
             </div>
           </div>

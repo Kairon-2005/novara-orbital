@@ -1,14 +1,20 @@
 import { createServerClient } from '@/db/server'
+import { getLocale } from '@/lib/locale-server'
 import CommunityClient from './CommunityClient'
 import type { ReportRowView } from './CommunityClient'
 
 // Community v2 — structured admission reports (录取汇报).
 // See docs/PRD-community.md. Anonymous by default; secondary + undergraduate only.
 
+const T = {
+  en: { notAuthenticated: 'Not authenticated.' },
+  zh: { notAuthenticated: '未登录。' },
+}
+
 export default async function CommunityPage() {
   const supabase = createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return <p className="p-10 text-red-500">Not authenticated.</p>
+  if (!user) return <p className="p-10 text-red-500">{T[getLocale('en')].notAuthenticated}</p>
 
   const [{ data: reports }, { data: myUpvotes }, { data: commentRows }, { data: mySaves }] = await Promise.all([
     supabase

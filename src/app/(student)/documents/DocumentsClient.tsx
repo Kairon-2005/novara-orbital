@@ -3,7 +3,108 @@
 import { useState } from 'react'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
+import { useLocale } from '@/components/shared/LocaleProvider'
+import type { Locale } from '@/lib/locale'
 import type { MockDocument, DocumentFileType } from '@/types/models'
+
+// ── copy ─────────────────────────────────────────────────────────────────────
+
+const T = {
+  en: {
+    fileTypes: {
+      transcript: 'Transcript', report_card: 'Report Card', certificate: 'Certificate',
+      passport: 'Passport', visa: 'Student Pass', medical: 'Medical',
+      application: 'Application', other: 'Other',
+    },
+    requiredDocs: {
+      'School Transcript': 'School Transcript',
+      'Passport Copy': 'Passport Copy',
+      'Student Pass (ICA)': 'Student Pass (ICA)',
+      'Teacher Reference Letter': 'Teacher Reference Letter',
+      'IELTS / SAT Score': 'IELTS / SAT Score',
+    } as Record<string, string>,
+    relevance: { high: 'high', medium: 'medium', low: 'low' } as Record<string, string>,
+    analysing: 'Analysing…',
+    parentAccess: 'Parent access',
+    revokeAccess: 'Revoke parent access',
+    grantAccess: 'Grant parent access',
+    delete: 'Delete',
+    uploadedTitle: 'Document uploaded',
+    uploadedDesc: 'Analysing in the background…',
+    uploadFailedTitle: 'Upload failed',
+    tryAgain: 'Please try again.',
+    networkError: 'Network error. Please try again.',
+    analysedTitle: 'Evidence analysed',
+    analysedDesc: 'Reassess your readiness on the Portfolio page to count it.',
+    pageTitle: 'Documents',
+    pageSub: (files: number, shared: number) => `${files} files · ${shared} shared with parents`,
+    uploadDocument: 'Upload Document',
+    allTab: (n: number) => `All (${n})`,
+    uploadAs: 'Upload as',
+    dragDrop: <>Drag &amp; drop files here, or <span className="text-[var(--blue)] font-semibold">click to upload</span></>,
+    fileHint: 'PDF, JPG, PNG — max 10 MB',
+    docCount: (n: number) => `${n} document${n !== 1 ? 's' : ''}`,
+    toggleHint: 'Toggle switch to share with parents',
+    noDocsCategory: 'No documents in this category.',
+    requiredDocuments: '📋 Required Documents',
+    missingCount: (n: number) => `${n} missing`,
+    checklistHint: 'For school application checklist',
+    missing: 'Missing',
+    parentAccessCard: '👨‍👩‍👧 Parent Access',
+    noSharedDocs: 'No documents shared with parents yet.',
+    storage: 'Storage',
+    totalFiles: 'Total files',
+    sharedWithParent: 'Shared w/ parent',
+    totalSize: 'Total size',
+  },
+  zh: {
+    fileTypes: {
+      transcript: '成绩单', report_card: '成绩报告单', certificate: '证书',
+      passport: '护照', visa: '学生准证', medical: '体检材料',
+      application: '申请材料', other: '其他',
+    },
+    requiredDocs: {
+      'School Transcript': '在校成绩单',
+      'Passport Copy': '护照复印件',
+      'Student Pass (ICA)': '学生准证（ICA）',
+      'Teacher Reference Letter': '教师推荐信',
+      'IELTS / SAT Score': '雅思 / SAT 成绩',
+    } as Record<string, string>,
+    relevance: { high: '高', medium: '中', low: '低' } as Record<string, string>,
+    analysing: '分析中…',
+    parentAccess: '家长可见',
+    revokeAccess: '取消家长查看权限',
+    grantAccess: '开放家长查看权限',
+    delete: '删除',
+    uploadedTitle: '文件已上传',
+    uploadedDesc: '正在后台分析…',
+    uploadFailedTitle: '上传失败',
+    tryAgain: '请重试。',
+    networkError: '网络错误，请重试。',
+    analysedTitle: '材料分析完成',
+    analysedDesc: '前往档案页重新评估准备度，即可把它计入。',
+    pageTitle: '文件管理',
+    pageSub: (files: number, shared: number) => `${files} 个文件 · ${shared} 个已与家长共享`,
+    uploadDocument: '上传文件',
+    allTab: (n: number) => `全部 (${n})`,
+    uploadAs: '上传类型',
+    dragDrop: <>把文件拖到这里，或<span className="text-[var(--blue)] font-semibold">点击上传</span></>,
+    fileHint: 'PDF、JPG、PNG — 最大 10 MB',
+    docCount: (n: number) => `${n} 个文件`,
+    toggleHint: '打开开关即可与家长共享',
+    noDocsCategory: '该分类下还没有文件。',
+    requiredDocuments: '📋 必备文件',
+    missingCount: (n: number) => `缺 ${n} 项`,
+    checklistHint: '学校申请材料清单',
+    missing: '缺失',
+    parentAccessCard: '👨‍👩‍👧 家长可见',
+    noSharedDocs: '还没有与家长共享的文件。',
+    storage: '存储',
+    totalFiles: '文件总数',
+    sharedWithParent: '已与家长共享',
+    totalSize: '总大小',
+  },
+} satisfies Record<Locale, unknown>
 
 // ── File type config ──────────────────────────────────────────────────────────
 
@@ -43,6 +144,7 @@ function DocRow({ doc, onToggleAccess, onDelete }: {
   onToggleAccess: (id: string) => void
   onDelete: (id: string) => void
 }) {
+  const t = T[useLocale()]
   const cfg = FILE_TYPE_CONFIG[doc.file_type]
 
   return (
@@ -57,7 +159,7 @@ function DocRow({ doc, onToggleAccess, onDelete }: {
       <div className="flex-1 min-w-0">
         <div className="text-[13px] font-semibold text-[var(--t900)] truncate">{doc.file_name}</div>
         <div className="text-[11px] text-[var(--t500)] mt-0.5">
-          {cfg.label} · {doc.upload_date} · {formatSize(doc.size_kb)}
+          {t.fileTypes[doc.file_type]} · {doc.upload_date} · {formatSize(doc.size_kb)}
         </div>
         {doc.classifying && (
           <div className="text-[11px] text-[var(--blue)] mt-1 flex items-center gap-1.5">
@@ -65,7 +167,7 @@ function DocRow({ doc, onToggleAccess, onDelete }: {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
             </svg>
-            Analysing…
+            {t.analysing}
           </div>
         )}
         {!doc.classifying && doc.summary && (
@@ -76,7 +178,7 @@ function DocRow({ doc, onToggleAccess, onDelete }: {
                   background: doc.relevance === 'high' ? 'var(--green-50)' : doc.relevance === 'medium' ? '#FFFBEB' : '#F3F4F6',
                   color:      doc.relevance === 'high' ? 'var(--green)' : doc.relevance === 'medium' ? '#B45309' : 'var(--t500)',
                 }}>
-                ✦ {doc.relevance}
+                ✦ {t.relevance[doc.relevance] ?? doc.relevance}
               </span>
             )}
             <span className="leading-snug">{doc.summary}</span>
@@ -86,10 +188,10 @@ function DocRow({ doc, onToggleAccess, onDelete }: {
 
       {/* Parent access toggle */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <span className="text-[11px] text-[var(--t300)]">Parent access</span>
+        <span className="text-[11px] text-[var(--t300)]">{t.parentAccess}</span>
         <button
           onClick={() => onToggleAccess(doc.id)}
-          title={doc.parent_access ? 'Revoke parent access' : 'Grant parent access'}
+          title={doc.parent_access ? t.revokeAccess : t.grantAccess}
           className="relative w-9 h-5 rounded-full transition-all flex-shrink-0"
           style={{ background: doc.parent_access ? 'var(--green)' : '#E5E7EB' }}
         >
@@ -103,14 +205,14 @@ function DocRow({ doc, onToggleAccess, onDelete }: {
       {/* Type badge */}
       <span className="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[10px] font-semibold flex-shrink-0"
         style={{ background: cfg.bg, color: cfg.color }}>
-        {cfg.label}
+        {t.fileTypes[doc.file_type]}
       </span>
 
       {/* Delete */}
       <button
         onClick={() => onDelete(doc.id)}
         className="opacity-0 group-hover:opacity-100 text-[var(--t300)] hover:text-[var(--red)] transition flex-shrink-0"
-        title="Delete"
+        title={t.delete}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
@@ -130,6 +232,8 @@ interface DocumentsClientProps {
 export default function DocumentsClient({ initialDocuments, userId }: DocumentsClientProps) {
   const supabase = createBrowserClient()
   const toast = useToast()
+  const locale = useLocale()
+  const t = T[locale]
   const [docs, setDocs]         = useState<MockDocument[]>(initialDocuments)
   const [activeTab, setActiveTab] = useState<'all' | DocumentFileType>('all')
   const [dragOver, setDragOver] = useState(false)
@@ -168,13 +272,13 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
           classifying: true,
         }
         setDocs(prev => [newDoc, ...prev])
-        toast({ title: 'Document uploaded', description: 'Analysing in the background…', variant: 'success' })
+        toast({ title: t.uploadedTitle, description: t.uploadedDesc, variant: 'success' })
         void classifyInBackground(json.id as string)
       } else {
-        toast({ title: 'Upload failed', description: json.error ?? 'Please try again.', variant: 'error' })
+        toast({ title: t.uploadFailedTitle, description: json.error ?? t.tryAgain, variant: 'error' })
       }
     } catch {
-      toast({ title: 'Upload failed', description: 'Network error. Please try again.', variant: 'error' })
+      toast({ title: t.uploadFailedTitle, description: t.networkError, variant: 'error' })
     } finally {
       setUploading(false)
     }
@@ -193,7 +297,7 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
         ? { ...d, classifying: false, summary: json.classification?.summary, relevance: json.classification?.relevance }
         : d))
       if (json.classification) {
-        toast({ title: 'Evidence analysed', description: 'Reassess your readiness on the Portfolio page to count it.', variant: 'success' })
+        toast({ title: t.analysedTitle, description: t.analysedDesc, variant: 'success' })
       }
     } catch {
       setDocs(prev => prev.map(d => d.id === id ? { ...d, classifying: false } : d))
@@ -218,8 +322,8 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
       {/* Topbar */}
       <div className="bg-white border-b border-[var(--border)] px-9 h-14 flex items-center justify-between sticky top-0 z-50">
         <div>
-          <div className="font-display font-bold text-[17px] text-[var(--t900)]">Documents</div>
-          <div className="text-[11px] text-[var(--t500)] mt-0.5">{docs.length} files · {docs.filter(d => d.parent_access).length} shared with parents</div>
+          <div className="font-display font-bold text-[17px] text-[var(--t900)]">{t.pageTitle}</div>
+          <div className="text-[11px] text-[var(--t500)] mt-0.5">{t.pageSub(docs.length, docs.filter(d => d.parent_access).length)}</div>
         </div>
         <button
           onClick={simulateUpload}
@@ -229,7 +333,7 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
           </svg>
-          Upload Document
+          {t.uploadDocument}
         </button>
       </div>
 
@@ -241,35 +345,35 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
 
             {/* Category tabs */}
             <div className="flex flex-wrap gap-1.5">
-              {CATEGORY_TABS.map(t => (
+              {CATEGORY_TABS.map(tab => (
                 <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
                   className={`px-3 py-1 rounded-full text-[11px] font-semibold border-[1.5px] transition ${
-                    activeTab === t
+                    activeTab === tab
                       ? 'bg-[var(--blue)] text-white border-[var(--blue)]'
                       : 'bg-white text-[var(--t500)] border-[var(--border)] hover:border-[var(--blue)] hover:text-[var(--blue)]'
                   }`}
                 >
-                  {t === 'all'
-                    ? `All (${docs.length})`
-                    : `${FILE_TYPE_CONFIG[t].emoji} ${FILE_TYPE_CONFIG[t].label} (${docs.filter(d => d.file_type === t).length})`}
+                  {tab === 'all'
+                    ? t.allTab(docs.length)
+                    : `${FILE_TYPE_CONFIG[tab].emoji} ${t.fileTypes[tab]} (${docs.filter(d => d.file_type === tab).length})`}
                 </button>
               ))}
             </div>
 
             {/* Upload category picker */}
             <div className="flex items-center gap-2">
-              <label htmlFor="upload-category" className="text-[11px] font-semibold text-[var(--t500)]">Upload as</label>
+              <label htmlFor="upload-category" className="text-[11px] font-semibold text-[var(--t500)]">{t.uploadAs}</label>
               <select
                 id="upload-category"
                 value={uploadCategory}
                 onChange={e => setUploadCategory(e.target.value as DocumentFileType)}
                 className="px-2.5 py-1.5 border border-[var(--border)] rounded-[7px] text-[12px] font-medium text-[var(--t700)] bg-white focus:outline-none focus:border-[var(--blue)]"
               >
-                {CATEGORY_TABS.filter(t => t !== 'all').map(t => (
-                  <option key={t} value={t}>
-                    {FILE_TYPE_CONFIG[t as DocumentFileType].emoji} {FILE_TYPE_CONFIG[t as DocumentFileType].label}
+                {CATEGORY_TABS.filter(tab => tab !== 'all').map(tab => (
+                  <option key={tab} value={tab}>
+                    {FILE_TYPE_CONFIG[tab as DocumentFileType].emoji} {t.fileTypes[tab as DocumentFileType]}
                   </option>
                 ))}
               </select>
@@ -291,18 +395,18 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
                 <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
               </svg>
               <div className="text-[12px] font-medium text-[var(--t500)]">
-                Drag &amp; drop files here, or <span className="text-[var(--blue)] font-semibold">click to upload</span>
+                {t.dragDrop}
               </div>
-              <div className="text-[11px] text-[var(--t300)]">PDF, JPG, PNG — max 10 MB</div>
+              <div className="text-[11px] text-[var(--t300)]">{t.fileHint}</div>
             </div>
 
             {/* Document list */}
             <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
               <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
                 <div className="font-display font-semibold text-[13px] text-[var(--t900)]">
-                  {displayed.length} document{displayed.length !== 1 ? 's' : ''}
+                  {t.docCount(displayed.length)}
                 </div>
-                <div className="text-[11px] text-[var(--t500)]">Toggle switch to share with parents</div>
+                <div className="text-[11px] text-[var(--t500)]">{t.toggleHint}</div>
               </div>
 
               {displayed.length > 0 ? (
@@ -314,7 +418,7 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
               ) : (
                 <div className="py-10 text-center">
                   <div className="text-3xl mb-3">📁</div>
-                  <div className="text-[13px] text-[var(--t500)]">No documents in this category.</div>
+                  <div className="text-[13px] text-[var(--t500)]">{t.noDocsCategory}</div>
                 </div>
               )}
             </div>
@@ -326,14 +430,14 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
             {/* Required docs checklist */}
             <div className="bg-white border border-[var(--border)] rounded-[10px] p-[18px_20px] shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
               <div className="font-display font-bold text-[13px] text-[var(--t900)] mb-1 flex items-center justify-between">
-                <span>📋 Required Documents</span>
+                <span>{t.requiredDocuments}</span>
                 {missing.length > 0 && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-bold bg-[var(--red-50)] text-[var(--red)]">
-                    {missing.length} missing
+                    {t.missingCount(missing.length)}
                   </span>
                 )}
               </div>
-              <div className="text-[11px] text-[var(--t500)] mb-3">For school application checklist</div>
+              <div className="text-[11px] text-[var(--t500)] mb-3">{t.checklistHint}</div>
               <div className="flex flex-col gap-1.5">
                 {REQUIRED_DOCS.map(r => {
                   const uploaded = docs.some(d => d.file_type === r.type)
@@ -350,9 +454,9 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
                           <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
                         </svg>
                       )}
-                      <span className="text-[12px] text-[var(--t700)] flex-1">{r.label}</span>
+                      <span className="text-[12px] text-[var(--t700)] flex-1">{t.requiredDocs[r.label] ?? r.label}</span>
                       {!uploaded && (
-                        <span className="text-[10px] font-bold text-[var(--red)]">Missing</span>
+                        <span className="text-[10px] font-bold text-[var(--red)]">{t.missing}</span>
                       )}
                     </div>
                   )
@@ -362,7 +466,7 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
 
             {/* Parent access summary */}
             <div className="bg-white border border-[var(--border)] rounded-[10px] p-[18px_20px] shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              <div className="font-display font-bold text-[13px] text-[var(--t900)] mb-3">👨‍👩‍👧 Parent Access</div>
+              <div className="font-display font-bold text-[13px] text-[var(--t900)] mb-3">{t.parentAccessCard}</div>
               <div className="flex flex-col gap-2">
                 {docs.filter(d => d.parent_access).map(d => {
                   const cfg = FILE_TYPE_CONFIG[d.file_type]
@@ -378,7 +482,7 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
                 })}
                 {docs.filter(d => d.parent_access).length === 0 && (
                   <div className="text-[12px] text-[var(--t500)] text-center py-3">
-                    No documents shared with parents yet.
+                    {t.noSharedDocs}
                   </div>
                 )}
               </div>
@@ -386,14 +490,14 @@ export default function DocumentsClient({ initialDocuments, userId }: DocumentsC
 
             {/* Stats */}
             <div className="bg-white border border-[var(--border)] rounded-[10px] p-[18px_20px] shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              <div className="font-display font-bold text-[13px] text-[var(--t900)] mb-3">Storage</div>
+              <div className="font-display font-bold text-[13px] text-[var(--t900)] mb-3">{t.storage}</div>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Total files',     value: docs.length.toString(),                        color: 'var(--blue)' },
-                  { label: 'Shared w/ parent', value: docs.filter(d => d.parent_access).length.toString(), color: 'var(--green)' },
-                  { label: 'Total size',
+                  { label: t.totalFiles,      value: docs.length.toString(),                        color: 'var(--blue)' },
+                  { label: t.sharedWithParent, value: docs.filter(d => d.parent_access).length.toString(), color: 'var(--green)' },
+                  { label: t.totalSize,
                     value: `${(docs.reduce((s, d) => s + d.size_kb, 0) / 1000).toFixed(1)} MB`,    color: 'var(--t700)' },
-                  { label: 'Missing',         value: missing.length.toString(),                     color: missing.length ? 'var(--red)' : 'var(--green)' },
+                  { label: t.missing,         value: missing.length.toString(),                     color: missing.length ? 'var(--red)' : 'var(--green)' },
                 ].map((s, i) => (
                   <div key={i} className="bg-[var(--bg)] rounded-[8px] p-3 text-center">
                     <div className="font-display font-extrabold text-[20px] leading-none" style={{ color: s.color }}>{s.value}</div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useLocale } from '@/components/shared/LocaleProvider'
 import { filterSchools, type DirectorySchool } from '@/lib/schools'
 
 // ── Styling maps ──────────────────────────────────────────────────────────────
@@ -19,10 +20,53 @@ const CURRICULUM_STYLE: Record<string, { bg: string; color: string }> = {
   'Mixed':    { bg: '#FDF4FF', color: '#86198F' },
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  primary: 'Primary', secondary: 'Secondary / International', jc: 'Junior College',
-  poly: 'Polytechnic', university: 'University', language_school: 'Language School',
-  diploma: 'Diploma',
+// ── Copy (bilingual) ──────────────────────────────────────────
+
+const T = {
+  en: {
+    typeLabels: {
+      primary: 'Primary', secondary: 'Secondary / International', jc: 'Junior College',
+      poly: 'Polytechnic', university: 'University', language_school: 'Language School',
+      diploma: 'Diploma',
+    } as Record<string, string>,
+    perYear: 'per year (indicative)',
+    less: 'Less ↑',
+    details: 'Details ↓',
+    officialSite: 'Official site →',
+    pageTitle: 'School Navigator',
+    pageSubtitle: (n: number) => `Find your school in Singapore — primary to university · ${n} schools listed`,
+    searchPh: "Search by name, area, or keyword — e.g. 'IB near Holland Village'",
+    levelLabel: 'Level',
+    curriculumLabel: 'Curriculum',
+    zoneLabel: 'Zone',
+    all: 'All',
+    emptyDirTitle: 'The directory is empty',
+    emptyDirDesc: 'School listings are curated by the Novara team — check back soon.',
+    noMatchTitle: 'No schools match your filters',
+    noMatchDesc: 'Try clearing a filter or broadening your search.',
+  },
+  zh: {
+    typeLabels: {
+      primary: '小学', secondary: '中学·国际学校', jc: '初级学院',
+      poly: '理工学院', university: '大学', language_school: '语言学校',
+      diploma: '文凭课程',
+    } as Record<string, string>,
+    perYear: '每年（参考价）',
+    less: '收起 ↑',
+    details: '详情 ↓',
+    officialSite: '官方网站 →',
+    pageTitle: '择校导航',
+    pageSubtitle: (n: number) => `在新加坡找到合适的学校 — 从小学到大学 · 共收录 ${n} 所学校`,
+    searchPh: '按校名、区域或关键词搜索——如 “IB near Holland Village”',
+    levelLabel: '学段',
+    curriculumLabel: '课程体系',
+    zoneLabel: '区域',
+    all: '全部',
+    emptyDirTitle: '目录暂无学校',
+    emptyDirDesc: '学校信息由 Novara 团队甄选上架，敬请期待。',
+    noMatchTitle: '没有符合筛选条件的学校',
+    noMatchDesc: '试试取消一个筛选条件，或放宽搜索。',
+  },
 }
 
 const TYPE_GRADIENT: Record<string, string> = {
@@ -39,6 +83,8 @@ const TYPE_GRADIENT: Record<string, string> = {
 
 function SchoolCard({ school }: { school: DirectorySchool }) {
   const [open, setOpen] = useState(false)
+  const locale = useLocale()
+  const t = T[locale]
   const currStyle = school.curriculum ? CURRICULUM_STYLE[school.curriculum] : null
 
   return (
@@ -57,7 +103,7 @@ function SchoolCard({ school }: { school: DirectorySchool }) {
             </span>
           )}
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#F3F4F6] text-[var(--t500)]">
-            {TYPE_LABEL[school.school_type] ?? school.school_type}
+            {t.typeLabels[school.school_type] ?? school.school_type}
           </span>
         </div>
 
@@ -72,7 +118,7 @@ function SchoolCard({ school }: { school: DirectorySchool }) {
             <div className="font-display font-bold text-[14px] text-[var(--t900)]">
               {school.tuition_range.split('/')[0].trim()}
             </div>
-            <div className="text-[10px] text-[var(--t300)] mb-2">per year (indicative)</div>
+            <div className="text-[10px] text-[var(--t300)] mb-2">{t.perYear}</div>
           </>
         )}
 
@@ -95,12 +141,12 @@ function SchoolCard({ school }: { school: DirectorySchool }) {
 
       <div className="px-[16px] py-[10px] border-t border-[var(--border)] flex items-center justify-between">
         <button onClick={() => setOpen(v => !v)} className="text-[12px] text-[var(--blue)] font-medium hover:underline">
-          {open ? 'Less ↑' : 'Details ↓'}
+          {open ? t.less : t.details}
         </button>
         {school.website && (
           <a href={school.website} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[7px] text-[12px] font-semibold border-[1.5px] border-[var(--blue)] text-[var(--blue)] hover:bg-[var(--blue-50)] transition">
-            Official site →
+            {t.officialSite}
           </a>
         )}
       </div>
@@ -131,6 +177,8 @@ const TYPE_OPTIONS = ['primary', 'secondary', 'jc', 'poly', 'university'] as con
 const CURRICULUM_OPTIONS = ['IB', 'A-Level', 'AP', 'O-Level', 'Local'] as const
 
 export default function NavigatorClient({ schools }: { schools: DirectorySchool[] }) {
+  const locale = useLocale()
+  const t = T[locale]
   const [query, setQuery] = useState('')
   const [type, setType] = useState('')
   const [curriculum, setCurriculum] = useState('')
@@ -151,9 +199,9 @@ export default function NavigatorClient({ schools }: { schools: DirectorySchool[
       {/* Topbar */}
       <div className="bg-white border-b border-[var(--border)] px-9 h-14 flex items-center justify-between sticky top-0 z-40">
         <div>
-          <div className="font-display font-bold text-[17px] text-[var(--t900)]">School Navigator</div>
+          <div className="font-display font-bold text-[17px] text-[var(--t900)]">{t.pageTitle}</div>
           <div className="text-[11px] text-[var(--t500)] mt-0.5">
-            Find your school in Singapore — primary to university · {schools.length} schools listed
+            {t.pageSubtitle(schools.length)}
           </div>
         </div>
       </div>
@@ -164,27 +212,27 @@ export default function NavigatorClient({ schools }: { schools: DirectorySchool[
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search by name, area, or keyword — e.g. 'IB near Holland Village'"
+            placeholder={t.searchPh}
             className="w-full px-3.5 py-2.5 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] focus:outline-none focus:border-[var(--blue)] placeholder:text-[var(--t300)]"
           />
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide">Level</span>
-            <Pill active={type === ''} onClick={() => setType('')}>All</Pill>
-            {TYPE_OPTIONS.map(t => (
-              <Pill key={t} active={type === t} onClick={() => setType(type === t ? '' : t)}>{TYPE_LABEL[t]}</Pill>
+            <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide">{t.levelLabel}</span>
+            <Pill active={type === ''} onClick={() => setType('')}>{t.all}</Pill>
+            {TYPE_OPTIONS.map(o => (
+              <Pill key={o} active={type === o} onClick={() => setType(type === o ? '' : o)}>{t.typeLabels[o]}</Pill>
             ))}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide">Curriculum</span>
-            <Pill active={curriculum === ''} onClick={() => setCurriculum('')}>All</Pill>
+            <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide">{t.curriculumLabel}</span>
+            <Pill active={curriculum === ''} onClick={() => setCurriculum('')}>{t.all}</Pill>
             {CURRICULUM_OPTIONS.map(c => (
               <Pill key={c} active={curriculum === c} onClick={() => setCurriculum(curriculum === c ? '' : c)}>{c}</Pill>
             ))}
           </div>
           {zones.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide">Zone</span>
-              <Pill active={zone === ''} onClick={() => setZone('')}>All</Pill>
+              <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide">{t.zoneLabel}</span>
+              <Pill active={zone === ''} onClick={() => setZone('')}>{t.all}</Pill>
               {zones.map(z => (
                 <Pill key={z} active={zone === z} onClick={() => setZone(zone === z ? '' : z)}>{z}</Pill>
               ))}
@@ -201,12 +249,10 @@ export default function NavigatorClient({ schools }: { schools: DirectorySchool[
           <div className="text-center py-16">
             <div className="text-[32px] mb-3">🔍</div>
             <div className="text-[14px] font-semibold text-[var(--t900)] mb-1">
-              {schools.length === 0 ? 'The directory is empty' : 'No schools match your filters'}
+              {schools.length === 0 ? t.emptyDirTitle : t.noMatchTitle}
             </div>
             <div className="text-[13px] text-[var(--t500)]">
-              {schools.length === 0
-                ? 'School listings are curated by the Novara team — check back soon.'
-                : 'Try clearing a filter or broadening your search.'}
+              {schools.length === 0 ? t.emptyDirDesc : t.noMatchDesc}
             </div>
           </div>
         )}

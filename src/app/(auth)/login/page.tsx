@@ -1,11 +1,61 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '@/db/client'
+import { LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib/locale'
+
+// Auth pages live outside the panel layouts (no LocaleProvider), so read the
+// NEXT_LOCALE cookie directly. Read after mount to avoid a hydration mismatch.
+function useCookieLocale(fallback: Locale): Locale {
+  const [locale, setLocale] = useState<Locale>(fallback)
+  useEffect(() => {
+    const value = document.cookie.match(new RegExp(`(?:^|;\\s*)${LOCALE_COOKIE}=([^;]*)`))?.[1]
+    setLocale(resolveLocale(value, fallback))
+  }, [fallback])
+  return locale
+}
+
+const T = {
+  en: {
+    tagline: "Your path to Singapore's top universities",
+    welcomeBack: 'Welcome back',
+    signInToContinue: 'Sign in to continue your journey',
+    emailNotConfirmed: 'Email not confirmed',
+    checkInbox: 'Check your inbox for the confirmation link.',
+    resent: '✓ Confirmation email resent!',
+    resend: 'Resend confirmation email →',
+    emailLabel: 'Email address',
+    passwordLabel: 'Password',
+    forgotPassword: 'Forgot password?',
+    signingIn: 'Signing in…',
+    signIn: 'Sign in',
+    noAccount: "Don't have an account?",
+    createOne: 'Create one free',
+    parentJoin: 'Parent? Join with invite code →',
+  },
+  zh: {
+    tagline: '通往新加坡顶尖大学之路',
+    welcomeBack: '欢迎回来',
+    signInToContinue: '登录以继续你的申请之旅',
+    emailNotConfirmed: '邮箱尚未验证',
+    checkInbox: '请在收件箱中查收验证邮件。',
+    resent: '✓ 验证邮件已重新发送！',
+    resend: '重新发送验证邮件 →',
+    emailLabel: '邮箱地址',
+    passwordLabel: '密码',
+    forgotPassword: '忘记密码？',
+    signingIn: '登录中…',
+    signIn: '登录',
+    noAccount: '还没有账户？',
+    createOne: '免费注册',
+    parentJoin: '家长？使用邀请码加入 →',
+  },
+} satisfies Record<Locale, unknown>
 
 export default function LoginPage() {
   const supabase = createBrowserClient()
+  const t = T[useCookieLocale('en')]
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -62,14 +112,14 @@ export default function LoginPage() {
           <div className="font-display font-extrabold text-[24px] text-[var(--t900)]">Novara</div>
         </div>
         <p className="text-[12px] text-[var(--t300)] text-center -mt-5 mb-6">
-          Your path to Singapore&apos;s top universities
+          {t.tagline}
         </p>
 
         <h1 className="font-display font-bold text-[20px] text-center text-[var(--t900)] mb-1.5">
-          Welcome back
+          {t.welcomeBack}
         </h1>
         <p className="text-[13px] text-[var(--t500)] text-center mb-7">
-          Sign in to continue your journey
+          {t.signInToContinue}
         </p>
 
         <form onSubmit={handleLogin} className="space-y-4">
@@ -80,13 +130,13 @@ export default function LoginPage() {
           )}
           {unconfirmed && (
             <div className="bg-[#FFFBEB] text-[#B45309] text-[13px] px-4 py-3 rounded-lg border border-yellow-200 space-y-1.5">
-              <div className="font-semibold">Email not confirmed</div>
-              <div className="text-[12px]">Check your inbox for the confirmation link.</div>
+              <div className="font-semibold">{t.emailNotConfirmed}</div>
+              <div className="text-[12px]">{t.checkInbox}</div>
               {resent ? (
-                <div className="text-[12px] text-[var(--green)] font-semibold">✓ Confirmation email resent!</div>
+                <div className="text-[12px] text-[var(--green)] font-semibold">{t.resent}</div>
               ) : (
                 <button type="button" onClick={handleResend} className="text-[12px] font-semibold underline">
-                  Resend confirmation email →
+                  {t.resend}
                 </button>
               )}
             </div>
@@ -94,7 +144,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">
-              Email address
+              {t.emailLabel}
             </label>
             <input
               type="email"
@@ -108,9 +158,9 @@ export default function LoginPage() {
 
           <div>
             <label className="flex justify-between text-[12px] font-semibold text-[var(--t700)] mb-1.5">
-              <span>Password</span>
+              <span>{t.passwordLabel}</span>
               <Link href="#" className="text-[var(--blue)] font-medium text-[11px]">
-                Forgot password?
+                {t.forgotPassword}
               </Link>
             </label>
             <input
@@ -128,18 +178,18 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-2.5 bg-[var(--blue)] hover:bg-[var(--blue-h)] text-white font-semibold text-[14px] rounded-lg transition disabled:opacity-60"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? t.signingIn : t.signIn}
           </button>
         </form>
 
         <div className="text-center mt-6 text-[12px] text-[var(--t500)] space-y-1.5">
           <div>
-            Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-[var(--blue)] font-semibold">Create one free</Link>
+            {t.noAccount}{' '}
+            <Link href="/signup" className="text-[var(--blue)] font-semibold">{t.createOne}</Link>
           </div>
           <div>
             <Link href="/join" className="text-[var(--t300)] text-[11px]">
-              Parent? Join with invite code →
+              {t.parentJoin}
             </Link>
           </div>
         </div>

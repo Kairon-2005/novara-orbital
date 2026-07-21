@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import { createBrowserClient } from '@/db/client'
+import { useLocale } from '@/components/shared/LocaleProvider'
+import type { Locale } from '@/lib/locale'
 import type { DbFeeItem, DbExpense } from './page'
 
 // ── Types (mirrors finance_items + expense_logs tables) ───────────────────────
@@ -25,6 +27,95 @@ type Expense = {
   amount: number
   date: string            // YYYY-MM-DD
 }
+
+// ── copy ─────────────────────────────────────────────────────────────────────
+
+const T = {
+  en: {
+    status: { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' },
+    feeCats: { tuition: 'Tuition', homestay: 'Homestay', insurance: 'Insurance', materials: 'Materials', activity: 'Activity', exam: 'Exam', other: 'Other' },
+    expCats: { food: 'food', transport: 'transport', books: 'books', entertainment: 'entertainment', clothing: 'clothing', other: 'other' },
+    expCatOptions: { food: 'Food', transport: 'Transport', books: 'Books', entertainment: 'Entertainment', clothing: 'Clothing', other: 'Other' },
+    due: (d: string) => `Due: ${d}`,
+    markPaid: 'Mark paid',
+    logExpense: 'Log Expense',
+    descriptionReq: 'Description *',
+    descPlaceholder: 'e.g. Hawker lunch × 3',
+    category: 'Category',
+    amountReq: 'Amount (SGD) *',
+    date: 'Date',
+    cancel: 'Cancel',
+    pageTitle: 'Finance',
+    pageSub: 'School fees · Expenses · Budget tracker',
+    addLogExpense: '+ Log Expense',
+    totalFees: 'Total Fees (AY 2026)',
+    allFeeItems: 'All fee items',
+    paid: 'Paid',
+    items: (n: number) => `${n} items`,
+    pending: 'Pending',
+    itemsDue: (n: number) => `${n} items due`,
+    overdue: 'Overdue',
+    requiresAction: 'Requires immediate action',
+    monthlySpending: 'Monthly Spending',
+    ofBudget: (b: string) => `of ${b} budget`,
+    feesTab: '🏫 School Fees',
+    expensesTab: '💳 Expense Log',
+    show: 'Show:',
+    all: 'All',
+    feeBreakdown: 'Fee Breakdown',
+    upcomingPayments: 'Upcoming Payments',
+    overdueShort: 'Overdue',
+    daysLeft: (d: number) => `${d}d left`,
+    recentExpenses: (m: string) => `Recent Expenses — ${m}`,
+    monthlyBudget: 'Monthly Budget',
+    spentOf: (spent: string, budget: string) => `Spent ${spent} of ${budget} allowance`,
+    pctUsed: (p: number) => `${p}% used`,
+    tipTitle: '💡 Tip',
+    tipBody: 'Your parents can view an overview of your school fees when you share documents with them. Expense logs remain private unless you choose to share.',
+  },
+  zh: {
+    status: { paid: '已缴', pending: '待缴', overdue: '逾期' },
+    feeCats: { tuition: '学费', homestay: '寄宿费', insurance: '保险', materials: '教材费', activity: '活动费', exam: '考试费', other: '其他' },
+    expCats: { food: '餐饮', transport: '交通', books: '书籍', entertainment: '娱乐', clothing: '服饰', other: '其他' },
+    expCatOptions: { food: '餐饮', transport: '交通', books: '书籍', entertainment: '娱乐', clothing: '服饰', other: '其他' },
+    due: (d: string) => `截止：${d}`,
+    markPaid: '标记已缴',
+    logExpense: '记一笔开销',
+    descriptionReq: '描述 *',
+    descPlaceholder: '例如：食阁午餐 × 3',
+    category: '类别',
+    amountReq: '金额（新币）*',
+    date: '日期',
+    cancel: '取消',
+    pageTitle: '费用管理',
+    pageSub: '学费 · 日常开销 · 预算追踪',
+    addLogExpense: '+ 记开销',
+    totalFees: '费用总额（2026 学年）',
+    allFeeItems: '全部费用项目',
+    paid: '已缴',
+    items: (n: number) => `${n} 项`,
+    pending: '待缴',
+    itemsDue: (n: number) => `${n} 项待缴`,
+    overdue: '逾期',
+    requiresAction: '需要立即处理',
+    monthlySpending: '本月开销',
+    ofBudget: (b: string) => `预算 ${b}`,
+    feesTab: '🏫 学校费用',
+    expensesTab: '💳 开销记录',
+    show: '筛选：',
+    all: '全部',
+    feeBreakdown: '费用构成',
+    upcomingPayments: '近期待缴',
+    overdueShort: '已逾期',
+    daysLeft: (d: number) => `剩 ${d} 天`,
+    recentExpenses: (m: string) => `近期开销 — ${m}`,
+    monthlyBudget: '每月预算',
+    spentOf: (spent: string, budget: string) => `已花费 ${spent}，零用钱预算 ${budget}`,
+    pctUsed: (p: number) => `已使用 ${p}%`,
+    tipTitle: '💡 小贴士',
+    tipBody: '当你与家长共享文件时，他们可以查看学费概览。开销记录默认保密，除非你选择共享。',
+  },
+} satisfies Record<Locale, unknown>
 
 // Monthly allowance budget targets (SGD)
 const BUDGET_TARGETS: Record<string, number> = {
@@ -69,6 +160,9 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 }
 
 function FeeRow({ fee, onMarkPaid }: { fee: FeeItem; onMarkPaid: (id: string) => void }) {
+  const locale = useLocale()
+  const t = T[locale]
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-SG'
   const s = STATUS_STYLE[fee.status]
   const overdue = fee.status === 'overdue'
 
@@ -79,20 +173,20 @@ function FeeRow({ fee, onMarkPaid }: { fee: FeeItem; onMarkPaid: (id: string) =>
         <div className="text-[13px] font-semibold text-[var(--t900)] leading-snug">{fee.label}</div>
         {fee.notes && <div className="text-[11px] text-[var(--t500)] mt-0.5">{fee.notes}</div>}
         <div className="text-[11px] text-[var(--t300)] mt-0.5">
-          Due: {new Date(fee.due_date).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {t.due(new Date(fee.due_date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' }))}
         </div>
       </div>
       <div className="text-right flex-shrink-0">
         <div className="font-display font-bold text-[14px] text-[var(--t900)]">{formatSGD(fee.amount)}</div>
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold mt-1"
           style={{ background: s.bg, color: s.color }}>
-          {s.label}
+          {t.status[fee.status]}
         </span>
       </div>
       {fee.status !== 'paid' && (
         <button onClick={() => onMarkPaid(fee.id)}
           className="px-3 py-1.5 rounded-[7px] text-[11px] font-semibold border border-[var(--blue)] text-[var(--blue)] hover:bg-[var(--blue-50)] flex-shrink-0 transition">
-          Mark paid
+          {t.markPaid}
         </button>
       )}
     </div>
@@ -100,6 +194,7 @@ function FeeRow({ fee, onMarkPaid }: { fee: FeeItem; onMarkPaid: (id: string) =>
 }
 
 function AddExpenseModal({ onAdd, onClose }: { onAdd: (e: Expense) => void; onClose: () => void }) {
+  const t = T[useLocale()]
   const [label, setLabel] = useState('')
   const [cat,   setCat]   = useState<Expense['category']>('food')
   const [amount, setAmount] = useState('')
@@ -117,46 +212,46 @@ function AddExpenseModal({ onAdd, onClose }: { onAdd: (e: Expense) => void; onCl
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
       <div className="bg-white rounded-[12px] shadow-[0_8px_40px_rgba(0,0,0,0.18)] w-[400px] border border-[var(--border)]">
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-          <span className="font-display font-bold text-[15px] text-[var(--t900)]">Log Expense</span>
+          <span className="font-display font-bold text-[15px] text-[var(--t900)]">{t.logExpense}</span>
           <button onClick={onClose} className="text-[var(--t400)] hover:text-[var(--t900)] text-[20px] leading-none">×</button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">Description *</label>
+            <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">{t.descriptionReq}</label>
             <input value={label} onChange={e => setLabel(e.target.value)} required
-              placeholder="e.g. Hawker lunch × 3"
+              placeholder={t.descPlaceholder}
               className="w-full px-3 py-2 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] focus:outline-none focus:border-[var(--blue)] placeholder:text-[var(--t300)]" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">Category</label>
+              <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">{t.category}</label>
               <select value={cat} onChange={e => setCat(e.target.value as Expense['category'])}
                 className="w-full px-3 py-2 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] bg-white focus:outline-none focus:border-[var(--blue)] cursor-pointer">
                 {Object.entries(CAT_EMOJI).filter(([k]) => ['food','transport','books','entertainment','clothing','other'].includes(k)).map(([k, e]) => (
-                  <option key={k} value={k}>{e} {k.charAt(0).toUpperCase() + k.slice(1)}</option>
+                  <option key={k} value={k}>{e} {t.expCatOptions[k as Expense['category']]}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">Amount (SGD) *</label>
+              <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">{t.amountReq}</label>
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required min="0.01" step="0.01"
                 placeholder="0.00"
                 className="w-full px-3 py-2 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] focus:outline-none focus:border-[var(--blue)] placeholder:text-[var(--t300)]" />
             </div>
           </div>
           <div>
-            <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">Date</label>
+            <label className="block text-[12px] font-semibold text-[var(--t700)] mb-1.5">{t.date}</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className="w-full px-3 py-2 border-[1.5px] border-[var(--border)] rounded-[8px] text-[13px] focus:outline-none focus:border-[var(--blue)]" />
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="px-4 py-2 rounded-[8px] text-[13px] font-semibold text-[var(--t700)] border border-[var(--border)] bg-white hover:bg-[var(--bg)]">
-              Cancel
+              {t.cancel}
             </button>
             <button type="submit"
               className="px-4 py-2 rounded-[8px] text-[13px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)]">
-              Log Expense
+              {t.logExpense}
             </button>
           </div>
         </form>
@@ -204,6 +299,9 @@ interface FinanceClientProps {
 
 export default function FinanceClient({ initialFees, initialExpenses, userId }: FinanceClientProps) {
   const supabase = createBrowserClient()
+  const locale = useLocale()
+  const t = T[locale]
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-SG'
   const [fees,      setFees]     = useState<FeeItem[]>(initialFees.map(mapFee))
   const [expenses,  setExpenses] = useState<Expense[]>(initialExpenses.map(mapExpense))
   const [activeTab, setTab]      = useState<'fees' | 'expenses'>('fees')
@@ -275,12 +373,12 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
       {/* Topbar */}
       <div className="bg-white border-b border-[var(--border)] px-9 h-14 flex items-center justify-between sticky top-0 z-40">
         <div>
-          <div className="font-display font-bold text-[17px] text-[var(--t900)]">Finance</div>
-          <div className="text-[11px] text-[var(--t500)] mt-0.5">School fees · Expenses · Budget tracker</div>
+          <div className="font-display font-bold text-[17px] text-[var(--t900)]">{t.pageTitle}</div>
+          <div className="text-[11px] text-[var(--t500)] mt-0.5">{t.pageSub}</div>
         </div>
         <button onClick={() => setModal(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)]">
-          + Log Expense
+          {t.addLogExpense}
         </button>
       </div>
 
@@ -288,25 +386,25 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
 
         {/* Stat cards */}
         <div className="grid gap-4 mb-6 grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total Fees (AY 2026)" value={formatSGD(totalFees)} sub="All fee items" />
-          <StatCard label="Paid" value={formatSGD(paidFees)} sub={`${fees.filter(f => f.status === 'paid').length} items`} color="#057A55" />
-          <StatCard label="Pending" value={formatSGD(pendingFees)} sub={`${fees.filter(f => f.status === 'pending').length} items due`} color="#B45309" />
+          <StatCard label={t.totalFees} value={formatSGD(totalFees)} sub={t.allFeeItems} />
+          <StatCard label={t.paid} value={formatSGD(paidFees)} sub={t.items(fees.filter(f => f.status === 'paid').length)} color="#057A55" />
+          <StatCard label={t.pending} value={formatSGD(pendingFees)} sub={t.itemsDue(fees.filter(f => f.status === 'pending').length)} color="#B45309" />
           {overdueFees > 0
-            ? <StatCard label="Overdue" value={formatSGD(overdueFees)} sub="Requires immediate action" color="#E02424" />
-            : <StatCard label="Monthly Spending" value={formatSGD(totalMonthExp)} sub={`of ${formatSGD(totalBudget)} budget`} color="#1A56DB" />
+            ? <StatCard label={t.overdue} value={formatSGD(overdueFees)} sub={t.requiresAction} color="#E02424" />
+            : <StatCard label={t.monthlySpending} value={formatSGD(totalMonthExp)} sub={t.ofBudget(formatSGD(totalBudget))} color="#1A56DB" />
           }
         </div>
 
         {/* Tabs */}
         <div className="flex items-center gap-1 mb-5 border-b border-[var(--border)]">
-          {(['fees', 'expenses'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
+          {(['fees', 'expenses'] as const).map(tab => (
+            <button key={tab} onClick={() => setTab(tab)}
               className={`px-5 py-2.5 text-[13px] font-semibold border-b-2 -mb-[1px] transition-colors ${
-                activeTab === t
+                activeTab === tab
                   ? 'border-[var(--blue)] text-[var(--blue)]'
                   : 'border-transparent text-[var(--t500)] hover:text-[var(--t900)]'
               }`}>
-              {t === 'fees' ? '🏫 School Fees' : '💳 Expense Log'}
+              {tab === 'fees' ? t.feesTab : t.expensesTab}
             </button>
           ))}
         </div>
@@ -317,7 +415,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
             <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
               {/* Filter pills */}
               <div className="px-4 py-3 border-b border-[var(--border)] flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide mr-1">Show:</span>
+                <span className="text-[11px] font-semibold text-[var(--t300)] uppercase tracking-wide mr-1">{t.show}</span>
                 {(['all', 'overdue', 'pending', 'paid'] as const).map(f => (
                   <button key={f} onClick={() => setFeeFilter(f)}
                     className={`px-3 py-1 rounded-full text-[11px] font-medium border-[1.5px] transition-all ${
@@ -325,7 +423,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
                         ? 'bg-[var(--blue-50)] text-[var(--blue)] border-[var(--blue)]'
                         : 'bg-white text-[var(--t700)] border-[var(--border)] hover:bg-[var(--bg)]'
                     }`}>
-                    {f === 'all' ? 'All' : STATUS_STYLE[f].label}
+                    {f === 'all' ? t.all : t.status[f]}
                   </button>
                 ))}
               </div>
@@ -339,11 +437,11 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
             {/* Fee breakdown sidebar */}
             <div className="space-y-4">
               <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-4">
-                <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-3">Fee Breakdown</div>
+                <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-3">{t.feeBreakdown}</div>
                 {/* Progress bar: paid vs total */}
                 <div className="mb-3">
                   <div className="flex justify-between text-[11px] text-[var(--t500)] mb-1">
-                    <span>Paid</span>
+                    <span>{t.paid}</span>
                     <span>{Math.round((paidFees / totalFees) * 100)}%</span>
                   </div>
                   <div className="h-[6px] bg-[#F3F4F6] rounded-full overflow-hidden">
@@ -352,13 +450,13 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
                   </div>
                 </div>
                 {/* By category */}
-                {['tuition','homestay','exam','insurance','materials','activity'].map(cat => {
+                {(['tuition','homestay','exam','insurance','materials','activity'] as const).map(cat => {
                   const total = fees.filter(f => f.category === cat).reduce((s, f) => s + f.amount, 0)
                   if (total === 0) return null
                   return (
                     <div key={cat} className="flex items-center justify-between py-1.5">
                       <span className="flex items-center gap-2 text-[12px] text-[var(--t700)]">
-                        {CAT_EMOJI[cat]} {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        {CAT_EMOJI[cat]} {t.feeCats[cat]}
                       </span>
                       <span className="text-[12px] font-bold text-[var(--t900)]">{formatSGD(total)}</span>
                     </div>
@@ -368,7 +466,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
 
               {/* Upcoming due */}
               <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-4">
-                <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-3">Upcoming Payments</div>
+                <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-3">{t.upcomingPayments}</div>
                 {fees
                   .filter(f => f.status !== 'paid' && f.due_date >= new Date().toISOString().slice(0, 10))
                   .sort((a, b) => a.due_date.localeCompare(b.due_date))
@@ -381,13 +479,13 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
                         <div>
                           <div className="text-[12px] font-semibold text-[var(--t900)] leading-snug">{f.label}</div>
                           <div className="text-[11px] text-[var(--t500)]">
-                            {new Date(f.due_date).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}
+                            {new Date(f.due_date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' })}
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="text-[12px] font-bold text-[var(--t900)]">{formatSGD(f.amount)}</div>
                           <div className={`text-[10px] font-semibold ${urgent ? 'text-[#E02424]' : 'text-[var(--t300)]'}`}>
-                            {daysLeft <= 0 ? 'Overdue' : `${daysLeft}d left`}
+                            {daysLeft <= 0 ? t.overdueShort : t.daysLeft(daysLeft)}
                           </div>
                         </div>
                       </div>
@@ -405,21 +503,21 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
             <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
               <div className="px-4 py-3 border-b border-[var(--border)]">
                 <div className="font-display font-semibold text-[13px] text-[var(--t900)]">
-                  Recent Expenses — {new Date().toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })}
+                  {t.recentExpenses(new Date().toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' }))}
                 </div>
               </div>
               {expenses
                 .sort((a, b) => b.date.localeCompare(a.date))
-                .map((exp, i) => (
+                .map((exp) => (
                   <div key={exp.id}
                     className="flex items-center gap-4 px-4 py-3 hover:bg-[var(--bg)] border-b border-[var(--border)] last:border-0">
                     <div className="text-[16px] flex-shrink-0">{CAT_EMOJI[exp.category] ?? '💰'}</div>
                     <div className="flex-1 min-w-0">
                       <div className="text-[13px] font-semibold text-[var(--t900)]">{exp.label}</div>
                       <div className="text-[11px] text-[var(--t500)]">
-                        {new Date(exp.date).toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        {new Date(exp.date).toLocaleDateString(dateLocale, { weekday: 'short', day: 'numeric', month: 'short' })}
                         {' · '}
-                        <span className="capitalize">{exp.category}</span>
+                        <span className="capitalize">{t.expCats[exp.category]}</span>
                       </div>
                     </div>
                     <div className="font-display font-bold text-[14px] text-[var(--t900)]">
@@ -432,9 +530,9 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
             {/* Budget sidebar */}
             <div className="space-y-4">
               <div className="bg-white border border-[var(--border)] rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-4">
-                <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-1">Monthly Budget</div>
+                <div className="font-display font-semibold text-[13px] text-[var(--t900)] mb-1">{t.monthlyBudget}</div>
                 <div className="text-[11px] text-[var(--t500)] mb-4">
-                  Spent {formatSGD(totalMonthExp)} of {formatSGD(totalBudget)} allowance
+                  {t.spentOf(formatSGD(totalMonthExp), formatSGD(totalBudget))}
                 </div>
                 {/* Overall bar */}
                 <div className="mb-4">
@@ -446,7 +544,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
                       }} />
                   </div>
                   <div className="text-[11px] text-[var(--t300)] mt-1">
-                    {Math.round((totalMonthExp / totalBudget) * 100)}% used
+                    {t.pctUsed(Math.round((totalMonthExp / totalBudget) * 100))}
                   </div>
                 </div>
 
@@ -458,7 +556,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
                   return (
                     <div key={cat} className="mb-3">
                       <div className="flex justify-between text-[11px] mb-1">
-                        <span className="text-[var(--t700)] capitalize">{CAT_EMOJI[cat]} {cat}</span>
+                        <span className="text-[var(--t700)] capitalize">{CAT_EMOJI[cat]} {t.expCats[cat as Expense['category']]}</span>
                         <span className={`font-semibold ${over ? 'text-[#E02424]' : 'text-[var(--t700)]'}`}>
                           ${spent} / ${budget}
                         </span>
@@ -473,9 +571,9 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
               </div>
 
               <div className="bg-[#F3FAF7] border border-[#D1FAE5] rounded-[10px] p-4">
-                <div className="font-display font-semibold text-[13px] text-[#057A55] mb-1">💡 Tip</div>
+                <div className="font-display font-semibold text-[13px] text-[#057A55] mb-1">{t.tipTitle}</div>
                 <div className="text-[12px] text-[#065F46] leading-relaxed">
-                  Your parents can view an overview of your school fees when you share documents with them. Expense logs remain private unless you choose to share.
+                  {t.tipBody}
                 </div>
               </div>
             </div>
