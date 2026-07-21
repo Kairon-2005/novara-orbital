@@ -6,7 +6,7 @@
 // unbounded spend. Pure core: the usage store is injected (DB adapter in
 // ai-guard-server.ts, in-memory fake in tests).
 
-export type GuardedFeature = 'assess' | 'requirements' | 'plan' | 'plan_from_source' | 'translate' | 'parse_material'
+export type GuardedFeature = 'assess' | 'requirements' | 'plan' | 'plan_from_source' | 'translate' | 'parse_material' | 'essay_feedback'
 
 export const FEATURE_DAILY_CAPS: Record<GuardedFeature, number> = {
   assess: 10,
@@ -15,6 +15,7 @@ export const FEATURE_DAILY_CAPS: Record<GuardedFeature, number> = {
   plan_from_source: 10,
   translate: 10,
   parse_material: 20,
+  essay_feedback: 8,
 }
 
 export interface AiUsageStore {

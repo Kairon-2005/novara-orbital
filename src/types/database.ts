@@ -79,6 +79,18 @@ export type Database = {
         Update: { id?: string; parent_id?: string; student_id?: string }
         Relationships: []
       }
+      essays: {
+        Row:    { id: string; student_id: string; target_id: string | null; title: string; prompt: string; content: string; created_at: string; updated_at: string }
+        Insert: { id?: string; student_id: string; target_id?: string | null; title?: string; prompt?: string; content?: string }
+        Update: { target_id?: string | null; title?: string; prompt?: string; content?: string; updated_at?: string }
+        Relationships: []
+      }
+      essay_feedback: {
+        Row:    { id: string; essay_id: string; content_snapshot: string; feedback: unknown; created_at: string }
+        Insert: { id?: string; essay_id: string; content_snapshot: string; feedback: unknown }
+        Update: never
+        Relationships: []
+      }
       ai_usage: {
         Row:    { user_id: string; feature: string; day: string; count: number }
         Insert: { user_id: string; feature: string; day: string; count?: number }
