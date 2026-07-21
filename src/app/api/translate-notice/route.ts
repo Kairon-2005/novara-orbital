@@ -14,6 +14,7 @@ import { createRouteClient } from '@/db/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import { translateToChineseWithSummary } from '@/lib/ai'
+import { decideNoticeTarget } from '@/lib/notice-target'
 
 // Service role client — bypasses RLS so we can insert on behalf of any student.
 // NEVER expose the service role key to the browser.
@@ -31,7 +32,21 @@ export async function POST(req: Request) {
   try {
     const formData   = await req.formData()
     const file       = formData.get('file') as File | null
-    const studentId  = (formData.get('studentId') as string | null) ?? user.id
+
+    // The target student is derived from the SESSION, never from the form
+    // (the service-role insert below bypasses RLS, so this check is the gate).
+    const [{ data: callerProfile }, { data: link }] = await Promise.all([
+      supabase.from('profiles').select('role').eq('id', user.id).single(),
+      supabase.from('parent_links').select('student_id').eq('parent_id', user.id).maybeSingle(),
+    ])
+    const target = decideNoticeTarget({
+      callerId: user.id,
+      callerRole: callerProfile?.role ?? null,
+      linkedStudentId: link?.student_id ?? null,
+      requestedStudentId: formData.get('studentId') as string | null,
+    })
+    if (!target.ok) return Response.json({ error: target.error }, { status: target.status })
+    const studentId = target.studentId
 
     if (!file) return Response.json({ error: 'No file provided' }, { status: 400 })
 
