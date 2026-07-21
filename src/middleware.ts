@@ -3,6 +3,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 const PUBLIC_ROUTES = ['/login', '/signup', '/join']
 
+// Public without redirect-on-login: tokenized share pages are meant to be
+// opened by relatives with no account (WeChat webview) — logged-in users may
+// view them too.
+const OPEN_ROUTES = ['/share/']
+
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: req })
 
@@ -28,6 +33,7 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = req.nextUrl
+  if (OPEN_ROUTES.some(r => pathname.startsWith(r))) return res
   const isPublic = PUBLIC_ROUTES.some(r => pathname.startsWith(r))
 
   // Not logged in — send to login
