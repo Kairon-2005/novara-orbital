@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { createServerClient } from '@/db/server'
 import { getLocale } from '@/lib/locale-server'
 import { formatBgLine } from '@/lib/community'
-import { VerifiedBadge } from '../../CasesTab'
+import { createAdminClient } from '@/db/server'
+import { decideTrustTier } from '@/lib/trust-tier'
+import { VerifiedBadge, TrustBadge } from '../../CasesTab'
 
 const T = {
   en: {
@@ -35,7 +37,8 @@ const T = {
 export default async function SharedCasePage({ params }: { params: { id: string } }) {
   const supabase = createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const t = T[getLocale('en')]
+  const locale = getLocale('en')
+  const t = T[locale]
   if (!user) return <p className="p-10 text-red-500">{t.loginRequired}</p>
 
   const { data: r } = await supabase
@@ -53,6 +56,31 @@ export default async function SharedCasePage({ params }: { params: { id: string 
     )
   }
 
+  // Trust tier — graceful pre-migration (columns/table may not exist yet).
+  let tier: ReturnType<typeof decideTrustTier> | null = null
+  try {
+    const admin = createAdminClient()
+    const { data: tierRow, error: tierErr } = await admin
+      .from('admission_reports')
+      .select('author_id, staff_reviewed_at')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (!tierErr && tierRow) {
+      const { data: emailRow } = await admin
+        .from('school_email_verifications')
+        .select('institution')
+        .eq('user_id', tierRow.author_id)
+        .not('verified_at', 'is', null)
+        .maybeSingle()
+      tier = decideTrustTier({
+        verificationStatus: r.verification_status,
+        staffReviewedAt: tierRow.staff_reviewed_at,
+        authorVerifiedInstitution: emailRow?.institution ?? null,
+        reportInstitution: r.institution,
+      })
+    }
+  } catch { /* tiers unavailable pre-migration */ }
+
   const sections: [string, string | null][] = [
     [t.admissionExperience, r.admission_experience],
     [t.interviewExperience, r.interview_experience],
@@ -65,7 +93,7 @@ export default async function SharedCasePage({ params }: { params: { id: string 
       <div className="card p-5 mt-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#F3FAF7] text-[#057A55]">{r.result}</span>
-          <VerifiedBadge status={r.verification_status} />
+          {tier ? <TrustBadge tier={tier} locale={locale} /> : <VerifiedBadge status={r.verification_status} />}
           {r.scholarship_name && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#FDF6B2] text-[#8E4B10]">🏅 {r.scholarship_name}</span>}
         </div>
         <h1 className="font-display font-bold text-[20px] text-[var(--t900)] mt-2">

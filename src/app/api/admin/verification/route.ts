@@ -1,4 +1,4 @@
-// POST /api/admin/verification  { reportId, action: 'force-verify' | 'revoke' | 'resolve' }
+// POST /api/admin/verification  { reportId, action: 'force-verify' | 'revoke' | 'resolve' | 'staff-review' }
 // Admin override of the AI verdict. Verification columns are service-role-only (the
 // guard_report_verification trigger), so this writes via createAdminClient and re-gates
 // the wiki accordingly. See docs/PRD-admin.md §5/§6.
@@ -15,10 +15,23 @@ export async function POST(request: Request) {
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const { reportId, action } = await request.json().catch(() => ({})) as {
-    reportId?: string; action?: VerificationAction
+    reportId?: string; action?: VerificationAction | 'staff-review'
   }
-  if (!reportId || (action !== 'force-verify' && action !== 'revoke' && action !== 'resolve')) {
+  if (!reportId || (action !== 'force-verify' && action !== 'revoke' && action !== 'resolve' && action !== 'staff-review')) {
     return NextResponse.json({ error: 'reportId and a valid action are required' }, { status: 400 })
+  }
+
+  // 人工复核 — the top trust tier: a human confirmed the evidence. Independent
+  // of the verdict override; only meaningful (per decideTrustTier) on verified
+  // cases. staff_reviewed_at is service-role-only via guard_staff_review.
+  if (action === 'staff-review') {
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from('admission_reports')
+      .update({ staff_reviewed_at: new Date().toISOString() })
+      .eq('id', reportId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ ok: true })
   }
 
   const result = applyVerificationOverride(action)

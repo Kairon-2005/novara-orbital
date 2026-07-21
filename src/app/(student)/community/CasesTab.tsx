@@ -5,6 +5,7 @@ import { useLocale } from '@/components/shared/LocaleProvider'
 import type { Locale } from '@/lib/locale'
 import { formatBgLine, REPORT_ROUTES, REPORT_RESULTS } from '@/lib/community'
 import type { ReportLevel, ReportRoute, ReportResult, VerificationStatus } from '@/types/database'
+import type { TrustTier } from '@/lib/trust-tier'
 
 // ── Types (mirror /api/community/cases) ───────────────────────
 
@@ -21,6 +22,7 @@ interface CaseView {
   standardizedTests: string | null
   scholarshipName: string | null
   verificationStatus: VerificationStatus
+  trustTier?: TrustTier
   upvotes: number
   downvotes: number
   createdAt: string
@@ -103,6 +105,45 @@ export function VerifiedBadge({ status }: { status: VerificationStatus }) {
   if (status === 'verified') return <span className="text-[11px] font-semibold text-[#057A55]">✅ 已验证</span>
   if (status === 'mismatch') return <span className="text-[11px] font-semibold text-[#E02424]">⚠️ 信息不一致</span>
   return <span className="text-[11px] text-[var(--t300)]">未验证</span>
+}
+
+// 可信度分级 badge. Fixed community terms (已验证/信息不一致/未验证) stay identical
+// in both locales; the two upgraded tiers get bilingual labels + a tooltip.
+const TIER_BADGE: Record<TrustTier, { label: { en: string; zh: string }; cls: string; tip: { en: string; zh: string } }> = {
+  staff_reviewed: {
+    label: { en: '🛡 Staff reviewed', zh: '🛡 人工复核' },
+    cls: 'text-[#7C3AED]',
+    tip: { en: 'AI-verified AND a Novara reviewer confirmed the evidence.', zh: '通过AI核验，且由 Novara 审核员人工确认证据。' },
+  },
+  email_verified: {
+    label: { en: '🎓 School-email verified', zh: '🎓 邮箱验证' },
+    cls: 'text-[#1A56DB]',
+    tip: { en: 'AI-verified AND the author holds a verified mailbox at this university.', zh: '通过AI核验，且作者已验证该校学生邮箱。' },
+  },
+  ai_verified: {
+    label: { en: '✅ 已验证', zh: '✅ 已验证' },
+    cls: 'text-[#057A55]',
+    tip: { en: 'Evidence cross-checked by AI against the claimed offer.', zh: '证据已由AI与所述录取结果交叉核验。' },
+  },
+  unverified: {
+    label: { en: '未验证', zh: '未验证' },
+    cls: 'text-[var(--t300)]',
+    tip: { en: 'No corroborating evidence yet.', zh: '暂无佐证材料。' },
+  },
+  mismatch: {
+    label: { en: '⚠️ 信息不一致', zh: '⚠️ 信息不一致' },
+    cls: 'text-[#E02424]',
+    tip: { en: 'Evidence contradicts the claim or duplicates another case.', zh: '证据与所述不符，或与其他案例重复。' },
+  },
+}
+
+export function TrustBadge({ tier, locale }: { tier: TrustTier; locale: Locale }) {
+  const b = TIER_BADGE[tier]
+  return (
+    <span title={b.tip[locale]} className={`text-[11px] font-semibold cursor-help ${b.cls}`}>
+      {b.label[locale]}
+    </span>
+  )
 }
 
 interface CasesTabProps {
@@ -232,7 +273,9 @@ export default function CasesTab({ savedOnly = false, mine = false, penName }: C
                   <div className="text-[12px] text-[var(--t500)]">{formatBgLine(c)}</div>
                 </div>
                 <span className="text-[12px] text-[var(--t300)]">{c.applyYear}</span>
-                <VerifiedBadge status={c.verificationStatus} />
+                {c.trustTier
+                  ? <TrustBadge tier={c.trustTier} locale={locale} />
+                  : <VerifiedBadge status={c.verificationStatus} />}
                 <span className="text-[12px] text-[var(--t300)]">▲ {c.upvotes}</span>
               </div>
             )

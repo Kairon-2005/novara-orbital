@@ -469,6 +469,7 @@ export type Database = {
           verification_status?: VerificationStatus
           verification_detail?: unknown | null
           verified_at?: string | null; ingested_at?: string | null
+          staff_reviewed_at?: string | null
           moderation_status?: 'approved' | 'flagged' | 'removed'
         }
         Relationships: []

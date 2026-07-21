@@ -22,7 +22,7 @@ export default function VerificationClient({ cases }: { cases: CaseRow[] }) {
   const [rows, setRows] = useState(cases)
   const [filter, setFilter] = useState<'all' | VerificationStatus>('all')
 
-  async function override(id: string, action: 'force-verify' | 'revoke' | 'resolve') {
+  async function override(id: string, action: 'force-verify' | 'revoke' | 'resolve' | 'staff-review') {
     const res = await fetch('/api/admin/verification', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -60,6 +60,7 @@ export default function VerificationClient({ cases }: { cases: CaseRow[] }) {
             <button onClick={() => override(r.id, 'force-verify')} className="text-[12px] font-semibold px-2.5 py-1 rounded-lg border border-[var(--border)] text-[#057A55] hover:border-[#057A55]">Force-verify</button>
             <button onClick={() => override(r.id, 'revoke')} className="text-[12px] font-semibold px-2.5 py-1 rounded-lg border border-[var(--border)] text-[#E02424] hover:border-[#E02424]">Revoke</button>
             <button onClick={() => override(r.id, 'resolve')} className="text-[12px] font-semibold px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--t500)] hover:border-[var(--blue)]">Resolve</button>
+            <button onClick={() => override(r.id, 'staff-review')} title="Top trust tier: a human confirmed the evidence (only meaningful on verified cases)" className="text-[12px] font-semibold px-2.5 py-1 rounded-lg border border-[var(--border)] text-[#7C3AED] hover:border-[#7C3AED]">标记人工复核</button>
           </div>
         ))}
       </div>
