@@ -40,6 +40,28 @@ export default async function UniversitiesPage() {
       getLatestAssessment(supabase, user.id),
     ])
 
+  // Programme dashboard rows — official stats, world-readable. Graceful when
+  // the table hasn't been migrated yet.
+  const { data: statRows } = await supabase
+    .from('programme_stats')
+    .select('*')
+    .order('university')
+  const programmeStats = (statRows ?? []).map(r => ({
+    id: r.id,
+    university: r.university,
+    programme: r.programme,
+    country: r.country,
+    curriculumUrl: r.curriculum_url,
+    igpUrl: r.igp_url,
+    qsRankUniversity: r.qs_rank_university,
+    qsRankSubject: r.qs_rank_subject,
+    theRankUniversity: r.the_rank_university,
+    gesMedianSalarySgd: r.ges_median_salary_sgd === null ? null : Number(r.ges_median_salary_sgd),
+    gesEmploymentRate: r.ges_employment_rate === null ? null : Number(r.ges_employment_rate),
+    gesYear: r.ges_year,
+    sources: (r.sources ?? {}) as Record<string, unknown>,
+  }))
+
   const targets: UniversityTarget[] = (data ?? []).map(r => ({
     id:           r.id,
     name:         r.name,
@@ -92,6 +114,7 @@ export default async function UniversitiesPage() {
     <UniversityClient
       initialTargets={targets}
       insights={insights}
+      programmeStats={programmeStats}
       userId={user.id}
       profileDefaults={{
         university: profile?.target_university ?? '',

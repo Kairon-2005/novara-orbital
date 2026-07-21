@@ -79,6 +79,32 @@ export type Database = {
         Update: { id?: string; parent_id?: string; student_id?: string }
         Relationships: []
       }
+      programme_stats: {
+        Row: {
+          id: string; university: string; programme: string; country: string
+          curriculum_url: string | null; igp_url: string | null
+          qs_rank_university: number | null; qs_rank_subject: number | null
+          the_rank_university: number | null
+          ges_median_salary_sgd: number | null; ges_employment_rate: number | null
+          ges_year: number | null; sources: unknown; updated_at: string
+        }
+        Insert: {
+          id?: string; university: string; programme: string; country?: string
+          curriculum_url?: string | null; igp_url?: string | null
+          qs_rank_university?: number | null; qs_rank_subject?: number | null
+          the_rank_university?: number | null
+          ges_median_salary_sgd?: number | null; ges_employment_rate?: number | null
+          ges_year?: number | null; sources?: unknown
+        }
+        Update: {
+          curriculum_url?: string | null; igp_url?: string | null
+          qs_rank_university?: number | null; qs_rank_subject?: number | null
+          the_rank_university?: number | null
+          ges_median_salary_sgd?: number | null; ges_employment_rate?: number | null
+          ges_year?: number | null; sources?: unknown
+        }
+        Relationships: []
+      }
       essays: {
         Row:    { id: string; student_id: string; target_id: string | null; title: string; prompt: string; content: string; created_at: string; updated_at: string }
         Insert: { id?: string; student_id: string; target_id?: string | null; title?: string; prompt?: string; content?: string }

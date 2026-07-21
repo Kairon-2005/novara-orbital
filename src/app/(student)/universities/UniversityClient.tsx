@@ -8,6 +8,8 @@ import type { ReadinessReport } from '@/lib/readiness-check'
 import { planProgress, toggleDocument } from '@/lib/university-plan'
 import type { ApplicationPlan } from '@/lib/university-plan'
 import type { ProposedEvent } from '@/lib/application-events'
+import CompareTab from './CompareTab'
+import type { ProgrammeStat } from '@/lib/programme-stats'
 
 // ── Types ─────────────────────────────────────────────────────
 // Fit/readiness analysis lives in the Portfolio assessment now — this page only
@@ -41,6 +43,7 @@ export interface TargetInsight {
 interface Props {
   initialTargets: UniversityTarget[]
   insights: Record<string, TargetInsight>
+  programmeStats: ProgrammeStat[]
   userId: string
   profileDefaults: ProfileDefaults
 }
@@ -793,9 +796,10 @@ function UniversityCard({
 
 // ── Main client ───────────────────────────────────────────────
 
-export default function UniversityClient({ initialTargets, insights, userId, profileDefaults }: Props) {
+export default function UniversityClient({ initialTargets, insights, programmeStats, userId, profileDefaults }: Props) {
   const [targets, setTargets] = useState<UniversityTarget[]>(initialTargets)
   const [showForm, setShowForm] = useState(false)
+  const [view, setView] = useState<'targets' | 'compare'>('targets')
 
   function handleAdd(u: UniversityTarget) {
     setTargets(prev => [u, ...prev])
@@ -837,6 +841,33 @@ export default function UniversityClient({ initialTargets, insights, userId, pro
       </div>
 
       <div className="p-[28px_36px] flex-1">
+        {/* View switch: 目标 tracker / 对比 official-data dashboard */}
+        <div className="flex items-center gap-1 mb-5 border-b border-[var(--border)]">
+          {([['targets', '🎯 我的目标'], ['compare', '📊 项目对比']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setView(key)}
+              className={`px-5 py-2.5 text-[13px] font-semibold border-b-2 -mb-[1px] transition-colors ${
+                view === key ? 'border-[var(--blue)] text-[var(--blue)]' : 'border-transparent text-[var(--t500)] hover:text-[var(--t900)]'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'compare' && (
+          <CompareTab
+            stats={programmeStats}
+            onTargetAdded={t => {
+              setTargets(prev => [{
+                id: t.id, name: t.name, country: '', programme: t.programme,
+                deadline: null, requirements: '', notes: '', status: 'researching',
+                referenceLink: '', applicationPlan: null, planUpdatedAt: null,
+              }, ...prev])
+              setView('targets')
+            }}
+          />
+        )}
+
+        {view === 'targets' && (<>
         {/* Add form */}
         {showForm && <AddForm defaults={profileDefaults} onAdd={handleAdd} onCancel={() => setShowForm(false)} />}
 
@@ -889,6 +920,7 @@ export default function UniversityClient({ initialTargets, insights, userId, pro
             )}
           </div>
         )}
+        </>)}
       </div>
     </div>
   )
