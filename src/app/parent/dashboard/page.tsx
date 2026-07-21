@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/db/server'
-import { computeJourney } from '@/lib/gamification'
+import { buildProgressSnapshot } from '@/lib/progress'
 import { getLatestAssessment } from '@/lib/data'
 import { JourneyCard } from '@/components/ui/JourneyCard'
 
@@ -136,29 +136,36 @@ export default async function ParentDashboardPage() {
   const readinessScore = readiness?.score ?? 0
 
   // Child milestone progress — feeds the journey hero so parents see real tracking
-  let milestonesDone = 0, milestonesTotal = 0
+  let childMilestones: Array<{ title: string; due_date: string | null; completed: boolean }> = []
   const { data: childRoadmap } = await supabase
     .from('roadmaps').select('id')
     .eq('student_id', childId).eq('status', 'active')
     .order('generated_at', { ascending: false }).limit(1).maybeSingle()
   if (childRoadmap?.id) {
     const { data: ms } = await supabase
-      .from('milestones').select('completed').eq('roadmap_id', childRoadmap.id)
-    milestonesTotal = ms?.length ?? 0
-    milestonesDone  = ms?.filter(m => m.completed).length ?? 0
+      .from('milestones').select('title, due_date, completed').eq('roadmap_id', childRoadmap.id)
+    childMilestones = ms ?? []
   }
   // Latest dimension-based assessment (parents can read via RLS)
   const childAssessment = await getLatestAssessment(supabase, childId)
-  const assessmentAvg = childAssessment && childAssessment.dimensionScores.length
-    ? Math.round(childAssessment.dimensionScores.reduce((s, d) => s + d.score, 0) / childAssessment.dimensionScores.length)
-    : 0
 
-  const journey = computeJourney({
-    readinessScore: assessmentAvg || readinessScore,
-    milestonesDone,
-    milestonesTotal,
-    achievements: achievements.length,
+  // One snapshot — the same 申请进度 truth the student sees and the share card renders
+  const snapshot = buildProgressSnapshot({
+    student: {
+      displayName: childName,
+      school: sp?.current_school,
+      curriculum: sp?.current_curriculum,
+      targetUniversity: sp?.target_university,
+    },
+    milestones: childMilestones.map(m => ({ title: m.title, dueDate: m.due_date, completed: m.completed })),
+    targets: [],
+    assessment: childAssessment,
+    readinessScore,
+    achievements: achievements.map(a => ({ title: a.title, category: a.category, date: a.date })),
+    upcomingEvents: events.map(e => ({ title: e.title, date: e.event_date, type: e.type })),
+    today: new Date().toISOString().slice(0, 10),
   })
+  const journey = snapshot.journey
 
   const totalFees = fees.reduce((s, f) => s + Number(f.amount_sgd), 0)
   const paidFees  = fees.filter(f => f.paid).reduce((s, f) => s + Number(f.amount_sgd), 0)
@@ -166,12 +173,6 @@ export default async function ParentDashboardPage() {
 
   const gap = readiness?.gap_analysis ?? ''
   const aiRec = gap.split('.').slice(0, 2).join('.').trim() || '请完成学生档案以获取个性化建议。'
-
-  const scores = {
-    academic:    Math.min(100, readinessScore + 18),
-    competition: Math.min(100, readinessScore),
-    community:   Math.max(0,   readinessScore - 40),
-  }
 
   const achivementsIconMap: Record<string, string> = {
     competition: '🏆', academic: '📚', cca: '🎵', volunteer: '🤝', award: '🥇', other: '⭐',
@@ -266,22 +267,8 @@ export default async function ParentDashboardPage() {
                       </div>
                       <div className="flex-1">
                         <ProgressBar pct={readinessScore} height={10} />
-                        <div className="flex flex-col gap-2 mt-4">
-                          {[
-                            { label: '学术成绩', pct: scores.academic,    color: 'var(--green)', tag: '优秀',    tagColor: 'text-[var(--green)]' },
-                            { label: '竞赛经历', pct: scores.competition, color: 'var(--blue)',  tag: '良好',    tagColor: 'text-[var(--blue)]' },
-                            { label: '社区服务', pct: scores.community,   color: 'var(--red)',   tag: scores.community < 40 ? '需加强 ⚠' : '一般', tagColor: scores.community < 40 ? 'text-[var(--red)]' : 'text-[var(--t500)]' },
-                          ].map(row => (
-                            <div key={row.label} className="flex items-center justify-between">
-                              <span className="text-[12px] text-[var(--t500)]">{row.label}</span>
-                              <div className="flex items-center gap-2">
-                                <div className="w-[100px] bg-[#F3F4F6] rounded-full h-[5px]">
-                                  <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color }} />
-                                </div>
-                                <span className={`text-[11px] font-semibold ${row.tagColor}`}>{row.tag}</span>
-                              </div>
-                            </div>
-                          ))}
+                        <div className="mt-4 text-[12px] text-[var(--t500)] leading-relaxed">
+                          孩子完成一次AI档案评估后，这里会显示五个维度的详细分析。
                         </div>
                       </div>
                     </div>

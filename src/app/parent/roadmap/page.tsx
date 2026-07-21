@@ -25,12 +25,11 @@ export default async function ParentRoadmapPage() {
 
   const childId = link.student_id
 
-  // Child profile for display
-  const { data: childProfile } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', childId)
-    .single()
+  // Child profile for display — real school/curriculum, not placeholders
+  const [{ data: childProfile }, { data: childSp }] = await Promise.all([
+    supabase.from('profiles').select('display_name').eq('id', childId).single(),
+    supabase.from('student_profiles').select('current_school, current_curriculum').eq('user_id', childId).maybeSingle(),
+  ])
 
   // Active roadmap + milestones
   const { data: roadmap } = await supabase
@@ -72,7 +71,11 @@ export default async function ParentRoadmapPage() {
       milestones={milestones}
       achievements={achievements}
       documents={[]}
-      childName={childProfile?.display_name ?? 'Your child'}
+      child={{
+        displayName: childProfile?.display_name ?? '学生',
+        school: childSp?.current_school ?? null,
+        curriculum: childSp?.current_curriculum ?? null,
+      }}
     />
   )
 }

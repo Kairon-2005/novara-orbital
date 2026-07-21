@@ -128,11 +128,10 @@ interface RoadmapParentClientProps {
   milestones: MockMilestone[]
   achievements: MockAchievement[]
   documents: MockDocument[]
-  childName: string
+  child: { displayName: string; school: string | null; curriculum: string | null }
 }
 
-export default function RoadmapParentClient({ milestones, achievements, documents, childName }: RoadmapParentClientProps) {
-  const child = { display_name: childName, display_name_cn: childName, current_school: 'ACS International', target_university: 'UCL / NUS', current_year: 1, current_curriculum: 'IB' }
+export default function RoadmapParentClient({ milestones, achievements, documents, child }: RoadmapParentClientProps) {
   const { xp, level, badges } = summarizeProgress({ achievements, milestones, documents })
 
   const byYear = useMemo(() => {
@@ -153,7 +152,7 @@ export default function RoadmapParentClient({ milestones, achievements, document
         <div>
           <div className="font-display font-bold text-[17px] text-[var(--t900)]">学习路线图</div>
           <div className="text-[11px] text-[var(--t500)] mt-0.5">
-            {child.display_name_cn}（{child.display_name}）· {child.current_school} · {child.current_curriculum}课程
+            {[child.displayName, child.school, child.curriculum && `${child.curriculum}课程`].filter(Boolean).join(' · ')}
           </div>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-[var(--t500)]">
