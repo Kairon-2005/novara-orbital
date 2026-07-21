@@ -79,6 +79,12 @@ export type Database = {
         Update: { id?: string; parent_id?: string; student_id?: string }
         Relationships: []
       }
+      ai_usage: {
+        Row:    { user_id: string; feature: string; day: string; count: number }
+        Insert: { user_id: string; feature: string; day: string; count?: number }
+        Update: { count?: number }
+        Relationships: []
+      }
       progress_shares: {
         Row:    { id: string; token: string; student_id: string; created_by: string; created_at: string; expires_at: string; revoked_at: string | null }
         Insert: { id?: string; token: string; student_id: string; created_by: string; created_at?: string; expires_at: string; revoked_at?: string | null }

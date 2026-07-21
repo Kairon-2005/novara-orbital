@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
 import { fetchApplicationPlan } from '@/lib/ai'
+import { runGuardedAi, quotaResponse } from '@/lib/ai-guard-server'
 
 export async function POST(request: Request) {
   const supabase = createRouteClient()
@@ -24,7 +25,8 @@ export async function POST(request: Request) {
   const enrollmentYear = profile?.target_enrollment_year ?? new Date().getFullYear() + 1
 
   try {
-    const plan = await fetchApplicationPlan(target.name, target.programme ?? '', enrollmentYear)
+    const plan = await runGuardedAi(user.id, 'plan', () =>
+      fetchApplicationPlan(target.name, target.programme ?? '', enrollmentYear))
 
     // Preserve the student's checked-off documents across refreshes (match by title).
     const previousDone = new Set(
@@ -40,6 +42,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ plan, planUpdatedAt })
   } catch (err) {
+    const quota = quotaResponse(err)
+    if (quota) return quota
     console.error('[universities/plan]', err)
     return NextResponse.json({ error: 'Plan generation failed. Please try again.' }, { status: 500 })
   }

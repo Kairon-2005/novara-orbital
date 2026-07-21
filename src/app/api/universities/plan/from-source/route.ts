@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
 import { extractText } from '@/lib/extract'
 import { fetchApplicationPlanFromSource } from '@/lib/ai'
+import { runGuardedAi, quotaResponse } from '@/lib/ai-guard-server'
 import { planToProposedEvents } from '@/lib/application-events'
 import { createPageFetcher } from '@/lib/page-fetch'
 import { impitFetchText, readerFetchText } from '@/lib/page-fetch-server'
@@ -60,9 +61,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const plan = await fetchApplicationPlanFromSource(
+    const plan = await runGuardedAi(user.id, 'plan_from_source', () => fetchApplicationPlanFromSource(
       target.name, target.programme ?? '', enrollmentYear, sourceText, url || undefined,
-    )
+    ))
     const planUpdatedAt = new Date().toISOString()
     await supabase
       .from('university_targets')
@@ -86,6 +87,8 @@ export async function POST(request: Request) {
       planUpdatedAt,
     })
   } catch (err) {
+    const quota = quotaResponse(err)
+    if (quota) return quota
     console.error('[universities/plan/from-source]', err)
     return NextResponse.json({ error: 'Could not build a plan from this content.' }, { status: 500 })
   }

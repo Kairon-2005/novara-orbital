@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
 import { fetchUniversityRequirements } from '@/lib/ai'
+import { runGuardedAi, quotaResponse } from '@/lib/ai-guard-server'
 
 interface Body {
   name: string
@@ -24,9 +25,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const requirements = await fetchUniversityRequirements(name.trim(), programme.trim(), country.trim())
+    const requirements = await runGuardedAi(user.id, 'requirements', () =>
+      fetchUniversityRequirements(name.trim(), programme.trim(), country.trim()))
     return NextResponse.json({ requirements })
   } catch (err) {
+    const quota = quotaResponse(err)
+    if (quota) return quota
     console.error('[universities/requirements]', err)
     return NextResponse.json({ error: 'AI lookup failed. Please try again.' }, { status: 500 })
   }
