@@ -201,7 +201,8 @@ export type Database = {
           id: string; school_name: string; slug: string
           school_type: SchoolType; curriculum: SchoolCurriculum | null
           zone: string | null; address: string | null; description: string | null
-          website: string | null; is_active: boolean; created_at: string
+          website: string | null; tuition_range: string | null; highlights: string[]
+          is_active: boolean; created_at: string
         }
         Insert: {
           id?: string; school_name: string; slug: string
