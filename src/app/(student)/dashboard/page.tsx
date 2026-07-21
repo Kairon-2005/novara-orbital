@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/db/server'
-import { computeJourney } from '@/lib/gamification'
+import { buildProgressSnapshot } from '@/lib/progress'
+import { getLatestAssessment } from '@/lib/data'
+import { ADMISSION_DIMENSIONS, type DimensionLevel } from '@/types/assessment'
 import { JourneyCard } from '@/components/ui/JourneyCard'
 import InviteCodeButton from './InviteCodeButton'
 
@@ -154,8 +156,9 @@ export default async function DashboardPage() {
         .select('amount_sgd, paid, due_date')
         .eq('student_id', user.id),
       supabase.from('achievements')
-        .select('id', { count: 'exact', head: true })
-        .eq('student_id', user.id),
+        .select('title, category, date')
+        .eq('student_id', user.id)
+        .order('date', { ascending: false }),
     ])
 
   const displayName = profileRes.data?.display_name ?? 'Student'
@@ -180,18 +183,30 @@ export default async function DashboardPage() {
     milestones = ms ?? []
   }
 
-  // ── derived stats ────────────────────────────────────────────────────────
-  const readinessScore = readiness?.score ?? 0
-  const totalMilestones = milestones.length
-  const doneMilestones  = milestones.filter(m => m.completed).length
-  const achievementsCount = achievementsRes.count ?? 0
+  // ── derived stats — all progress facts come from the snapshot module ─────
+  const assessment = await getLatestAssessment(supabase, user.id)
 
-  const journey = computeJourney({
-    readinessScore,
-    milestonesDone: doneMilestones,
-    milestonesTotal: totalMilestones,
-    achievements: achievementsCount,
+  const snapshot = buildProgressSnapshot({
+    student: {
+      displayName,
+      school: sp?.current_school,
+      curriculum: sp?.current_curriculum,
+      targetUniversity: sp?.target_university,
+      targetProgramme: sp?.target_programme,
+    },
+    milestones: milestones.map(m => ({ title: m.title, dueDate: m.due_date, completed: m.completed })),
+    targets: [],
+    assessment,
+    readinessScore: readiness?.score,
+    achievements: achievementsRes.data ?? [],
+    upcomingEvents: events.map(e => ({ title: e.title, date: e.event_date, type: e.type })),
+    today: new Date().toISOString().slice(0, 10),
   })
+
+  const readinessScore = readiness?.score ?? 0
+  const totalMilestones = snapshot.milestones.total
+  const doneMilestones  = snapshot.milestones.done
+  const journey = snapshot.journey
 
   const nextDeadline = events[0]
   const daysToNext   = nextDeadline ? daysUntil(nextDeadline.event_date) : null
@@ -202,12 +217,12 @@ export default async function DashboardPage() {
   const gap = readiness?.gap_analysis ?? ''
   const aiRec = gap.split('.').slice(0, 2).join('.').trim() || 'Complete your profile to get personalised recommendations.'
 
-  // readiness sub-scores (mock from gap text or default)
-  const scores = {
-    academic:    Math.min(100, readinessScore + 18),
-    competition: Math.min(100, readinessScore + 0),
-    community:   Math.max(0,   readinessScore - 40),
-    leadership:  Math.min(100, readinessScore - 15),
+  const dimLabel: Record<DimensionLevel, { tag: string; cls: string; color: string }> = {
+    strong:      { tag: 'Strong',     cls: 'text-[var(--green)]', color: 'var(--green)' },
+    competitive: { tag: 'Competitive', cls: 'text-[var(--blue)]',  color: 'var(--blue)' },
+    developing:  { tag: 'Developing', cls: 'text-[var(--blue)]',  color: 'var(--blue)' },
+    weak:        { tag: 'Weak ⚠',     cls: 'text-[var(--red)]',   color: 'var(--red)' },
+    missing:     { tag: 'Missing',    cls: 'text-[var(--t300)]',  color: '#9CA3AF' },
   }
 
   return (
@@ -334,23 +349,17 @@ export default async function DashboardPage() {
                       </span>
                     </div>
                     <ProgressBar pct={totalMilestones ? Math.round((doneMilestones / totalMilestones) * 100) : 0} />
-                    {/* Year progression */}
-                    <div className="grid grid-cols-4 gap-2 mt-4">
-                      {['Year 1', 'Year 2', 'Year 3', 'Year 4'].map((yr, i) => {
-                        const done  = i === 0
-                        const curr  = i === 1
-                        return (
-                          <div key={yr} className={`text-center px-2 py-2.5 rounded-[8px] ${
-                            done ? 'bg-[var(--blue)]' : curr ? 'bg-[var(--blue-50)] border-2 border-[var(--blue)]' : 'bg-[var(--bg)] border border-[var(--border)]'
-                          }`}>
-                            <div className={`text-[11px] font-bold ${done ? 'text-white' : curr ? 'text-[var(--blue)]' : 'text-[var(--t300)]'}`}>{yr}</div>
-                            <div className={`text-[10px] mt-0.5 ${done ? 'text-white/75' : curr ? 'text-[var(--blue)]' : 'text-[var(--t300)]'}`}>
-                              {done ? 'Complete' : curr ? 'In progress' : 'Upcoming'}
-                            </div>
+                    {/* Next up — real upcoming milestones from the snapshot */}
+                    {snapshot.milestones.next.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
+                        {snapshot.milestones.next.map(m => (
+                          <div key={m.title} className="px-3 py-2.5 rounded-[8px] bg-[var(--blue-50)] border border-[var(--blue-100)]">
+                            <div className="text-[11px] font-bold text-[var(--blue)] truncate">{m.title}</div>
+                            <div className="text-[10px] mt-0.5 text-[var(--t500)]">{m.dueDate ?? 'No due date'}</div>
                           </div>
-                        )
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-8">
@@ -436,27 +445,32 @@ export default async function DashboardPage() {
                 </span>
               </div>
               <div className="p-[16px_18px]">
-                {readiness ? (
+                {readiness || snapshot.readiness ? (
                   <>
-                    <ProgressBar pct={readinessScore} />
-                    <div className="flex flex-col gap-2 mt-3.5">
-                      {[
-                        { label: 'Academic Results',   pct: scores.academic,    color: 'var(--green)', tag: 'Strong',  tagColor: 'text-[var(--green)]' },
-                        { label: 'Competitions',        pct: scores.competition, color: 'var(--blue)',  tag: 'Good',    tagColor: 'text-[var(--blue)]' },
-                        { label: 'Community Service',   pct: scores.community,   color: 'var(--red)',   tag: scores.community < 40 ? 'Weak ⚠' : 'Average', tagColor: scores.community < 40 ? 'text-[var(--red)]' : 'text-[var(--blue)]' },
-                        { label: 'Leadership / CCA',    pct: scores.leadership,  color: 'var(--blue)',  tag: 'Average', tagColor: 'text-[var(--blue)]' },
-                      ].map(row => (
-                        <div key={row.label} className="flex items-center justify-between">
-                          <span className="text-[12px] text-[var(--t500)]">{row.label}</span>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-20 bg-[#F3F4F6] rounded-full h-[5px]">
-                              <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color }} />
+                    <ProgressBar pct={readinessScore || journey.pct} />
+                    {snapshot.readiness ? (
+                      <div className="flex flex-col gap-2 mt-3.5">
+                        {snapshot.readiness.dimensions.map(dim => {
+                          const meta = ADMISSION_DIMENSIONS.find(d => d.id === dim.id)
+                          const look = dimLabel[dim.level]
+                          return (
+                            <div key={dim.id} className="flex items-center justify-between">
+                              <span className="text-[12px] text-[var(--t500)]">{meta?.name ?? dim.id}</span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-20 bg-[#F3F4F6] rounded-full h-[5px]">
+                                  <div className="h-full rounded-full" style={{ width: `${dim.score}%`, background: look.color }} />
+                                </div>
+                                <span className={`text-[11px] font-semibold ${look.cls}`}>{look.tag}</span>
+                              </div>
                             </div>
-                            <span className={`text-[11px] font-semibold ${row.tagColor}`}>{row.tag}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-3.5 text-[12px] text-[var(--t500)]">
+                        Run a <Link href="/portfolio" className="text-[var(--blue)] font-medium hover:underline">portfolio assessment</Link> to see your five-dimension breakdown.
+                      </div>
+                    )}
                     <div className="mt-3.5 px-3 py-2.5 bg-[#FFFBEB] rounded-[8px] border-l-[3px] border-[#F59E0B]">
                       <div className="text-[12px] font-semibold text-[var(--amber)]">💡 AI Recommendation</div>
                       <div className="text-[12px] text-[var(--t500)] mt-1 leading-relaxed">{aiRec}</div>
