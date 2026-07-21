@@ -26,60 +26,6 @@ type Expense = {
   date: string            // YYYY-MM-DD
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const INITIAL_FEES: FeeItem[] = [
-  {
-    id: 'f1', label: 'Tuition — Term 2 2026', category: 'tuition',
-    amount: 9500, due_date: '2026-04-01', status: 'paid',
-    notes: 'ACS International Term 2',
-  },
-  {
-    id: 'f2', label: 'Homestay — May 2026', category: 'homestay',
-    amount: 950, due_date: '2026-05-01', status: 'paid',
-  },
-  {
-    id: 'f3', label: 'Homestay — June 2026', category: 'homestay',
-    amount: 950, due_date: '2026-06-01', status: 'pending',
-  },
-  {
-    id: 'f4', label: 'Student Health Insurance (Annual)', category: 'insurance',
-    amount: 1200, due_date: '2026-07-15', status: 'pending',
-    notes: 'AXA International Expat plan — renews August',
-  },
-  {
-    id: 'f5', label: 'IB Examination Fees 2026', category: 'exam',
-    amount: 2800, due_date: '2026-03-15', status: 'paid',
-    notes: '7 subjects × IB fee schedule',
-  },
-  {
-    id: 'f6', label: 'Tuition — Term 3 2026', category: 'tuition',
-    amount: 9500, due_date: '2026-07-01', status: 'pending',
-  },
-  {
-    id: 'f7', label: 'Materials & Stationery', category: 'materials',
-    amount: 320, due_date: '2026-04-10', status: 'paid',
-  },
-  {
-    id: 'f8', label: 'Science Lab Deposit (Overdue)', category: 'activity',
-    amount: 150, due_date: '2026-04-01', status: 'overdue',
-    notes: 'Contact Ms. Tan to resolve',
-  },
-]
-
-const INITIAL_EXPENSES: Expense[] = [
-  { id: 'x1',  label: 'EZ-Link top-up',         category: 'transport',     amount: 30,  date: '2026-05-20' },
-  { id: 'x2',  label: 'Hawker lunch × 5',        category: 'food',          amount: 25,  date: '2026-05-19' },
-  { id: 'x3',  label: 'IB Study Guide — Maths',  category: 'books',         amount: 42,  date: '2026-05-18' },
-  { id: 'x4',  label: 'Grab rides (week)',        category: 'transport',     amount: 28,  date: '2026-05-17' },
-  { id: 'x5',  label: 'Bubble tea + snacks',      category: 'food',          amount: 18,  date: '2026-05-16' },
-  { id: 'x6',  label: 'Cinema — Orchard',         category: 'entertainment', amount: 15,  date: '2026-05-15' },
-  { id: 'x7',  label: 'Stationery refill',        category: 'books',         amount: 12,  date: '2026-05-14' },
-  { id: 'x8',  label: 'Weekend groceries',        category: 'food',          amount: 45,  date: '2026-05-13' },
-  { id: 'x9',  label: 'School uniform alteration',category: 'clothing',      amount: 20,  date: '2026-05-12' },
-  { id: 'x10', label: 'Hawker dinner × 5',        category: 'food',          amount: 30,  date: '2026-05-11' },
-]
-
 // Monthly allowance budget targets (SGD)
 const BUDGET_TARGETS: Record<string, number> = {
   food: 200, transport: 120, books: 80, entertainment: 60, clothing: 50, other: 40,
@@ -291,8 +237,36 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
     })
   }, [fees, feeFilter])
 
-  function markPaid(id: string) {
-    setFees(prev => prev.map(f => f.id === id ? { ...f, status: 'paid' } : f))
+  async function markPaid(id: string) {
+    const prev = fees
+    setFees(p => p.map(f => f.id === id ? { ...f, status: 'paid' } : f))
+    const { error } = await supabase
+      .from('fee_items')
+      .update({ paid: true, paid_date: new Date().toISOString().slice(0, 10) })
+      .eq('id', id)
+    if (error) setFees(prev) // revert — the write didn't land
+  }
+
+  // UI categories → expense_logs enum
+  const EXPENSE_CAT_DB: Record<Expense['category'], 'food' | 'transport' | 'school_supplies' | 'activities' | 'healthcare' | 'other'> = {
+    food: 'food', transport: 'transport', books: 'school_supplies',
+    entertainment: 'activities', clothing: 'other', other: 'other',
+  }
+
+  async function addExpense(e: Expense) {
+    const { data, error } = await supabase
+      .from('expense_logs')
+      .insert({
+        student_id: userId,
+        amount_sgd: e.amount,
+        category: EXPENSE_CAT_DB[e.category],
+        note: e.label,
+        date: e.date,
+      })
+      .select('id')
+      .single()
+    if (error || !data) return
+    setExpenses(p => [{ ...e, id: data.id }, ...p])
   }
 
   return (
@@ -509,7 +483,7 @@ export default function FinanceClient({ initialFees, initialExpenses, userId }: 
         )}
       </div>
 
-      {showModal && <AddExpenseModal onAdd={e => setExpenses(p => [e, ...p])} onClose={() => setModal(false)} />}
+      {showModal && <AddExpenseModal onAdd={addExpense} onClose={() => setModal(false)} />}
     </div>
   )
 }
