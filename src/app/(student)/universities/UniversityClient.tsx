@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
+import type { PositioningDecision } from '@/lib/positioning'
+import type { ReadinessReport } from '@/lib/readiness-check'
 import { planProgress, toggleDocument } from '@/lib/university-plan'
 import type { ApplicationPlan } from '@/lib/university-plan'
 import type { ProposedEvent } from '@/lib/application-events'
@@ -31,8 +33,14 @@ export interface ProfileDefaults {
   enrollmentYear: number | null
 }
 
+export interface TargetInsight {
+  positioning: PositioningDecision
+  readiness: ReadinessReport
+}
+
 interface Props {
   initialTargets: UniversityTarget[]
+  insights: Record<string, TargetInsight>
   userId: string
   profileDefaults: ProfileDefaults
 }
@@ -190,10 +198,61 @@ function AddForm({ defaults, onAdd, onCancel }: {
 
 // ── University Card ───────────────────────────────────────────
 
+const VERDICT_LABEL: Record<string, string> = {
+  reach: '冲刺 Reach', match: '匹配 Match', safety: '稳妥 Safety',
+}
+const VERDICT_STYLE: Record<string, { background: string; color: string }> = {
+  reach:  { background: '#FDF2F2', color: '#E02424' },
+  match:  { background: '#EBF5FF', color: '#1A56DB' },
+  safety: { background: '#F3FAF7', color: '#057A55' },
+}
+const READINESS_ICON: Record<string, string> = { ok: '✅', warning: '⚠️', missing: '❌' }
+
+// 定位 + 就绪检查 panel — everything here is computed server-side from verified
+// cases and the student's own records; refreshing the page recomputes it.
+function InsightPanel({ insight }: { insight: TargetInsight }) {
+  const { positioning, readiness } = insight
+  return (
+    <div className="rounded-[10px] border border-[var(--border)] bg-[var(--bg)] p-3 space-y-3">
+      <div>
+        <div className="text-[11px] font-semibold text-[var(--t500)] mb-1.5 uppercase tracking-wider">选校定位</div>
+        {positioning.verdict === 'insufficient_data' ? (
+          <div className="text-[12px] text-[var(--t500)]">{positioning.evidence[0]}</div>
+        ) : (
+          <div className="flex items-start gap-2 flex-wrap">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-bold"
+              style={VERDICT_STYLE[positioning.verdict]}>
+              {VERDICT_LABEL[positioning.verdict]}
+            </span>
+            <div className="text-[12px] text-[var(--t500)] leading-relaxed">
+              {positioning.evidence.map(e => <div key={e}>{e}</div>)}
+            </div>
+          </div>
+        )}
+      </div>
+      <div>
+        <div className="text-[11px] font-semibold text-[var(--t500)] mb-1.5 uppercase tracking-wider">
+          申请就绪检查 {readiness.ready ? '· ✅ 可以提交' : '· 还差几步'}
+        </div>
+        <div className="space-y-1">
+          {readiness.items.map(item => (
+            <div key={item.id} className="flex items-start gap-1.5 text-[12px]">
+              <span className="flex-shrink-0">{READINESS_ICON[item.status]}</span>
+              <span className="text-[var(--t700)] font-medium">{item.label}</span>
+              {item.detail && <span className="text-[var(--t400)]">— {item.detail}</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function UniversityCard({
-  target, userId, onDelete, onUpdate,
+  target, insight, userId, onDelete, onUpdate,
 }: {
   target: UniversityTarget
+  insight?: TargetInsight
   userId: string
   onDelete: (id: string) => void
   onUpdate: (id: string, patch: Partial<UniversityTarget>) => void
@@ -391,6 +450,17 @@ function UniversityCard({
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <span className="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[10px] font-semibold"
               style={{ background: sc.bg, color: sc.color }}>{sc.label}</span>
+            {insight && insight.positioning.verdict !== 'insufficient_data' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[10px] font-semibold"
+                style={VERDICT_STYLE[insight.positioning.verdict]}>
+                {VERDICT_LABEL[insight.positioning.verdict]}
+              </span>
+            )}
+            {insight?.readiness.ready && (target.status === 'researching' || target.status === 'applied') && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[10px] font-semibold bg-[#F3FAF7] text-[#057A55]">
+                ✓ 材料就绪
+              </span>
+            )}
             {target.deadline && (
               <span className="text-[11px] font-medium"
                 style={{ color: dl.urgent ? 'var(--red)' : 'var(--t400)' }}>
@@ -410,6 +480,9 @@ function UniversityCard({
       {/* Expanded detail */}
       {expanded && (
         <div className="border-t border-[var(--border)] px-4 pb-4 pt-3 space-y-3">
+
+          {/* 定位 + 就绪检查 — server-computed from verified cases + your own data */}
+          {insight && <InsightPanel insight={insight} />}
 
           {/* Status selector */}
           <div>
@@ -720,7 +793,7 @@ function UniversityCard({
 
 // ── Main client ───────────────────────────────────────────────
 
-export default function UniversityClient({ initialTargets, userId, profileDefaults }: Props) {
+export default function UniversityClient({ initialTargets, insights, userId, profileDefaults }: Props) {
   const [targets, setTargets] = useState<UniversityTarget[]>(initialTargets)
   const [showForm, setShowForm] = useState(false)
 
@@ -786,7 +859,7 @@ export default function UniversityClient({ initialTargets, userId, profileDefaul
               <section>
                 <div className="text-[11px] font-bold text-[var(--t300)] uppercase tracking-widest mb-3">🎉 Offers & Enrolled</div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {byStatus.offer.map(t => <UniversityCard key={t.id} target={t} userId={userId} onDelete={handleDelete} onUpdate={handleUpdate} />)}
+                  {byStatus.offer.map(t => <UniversityCard key={t.id} target={t} insight={insights[t.id]} userId={userId} onDelete={handleDelete} onUpdate={handleUpdate} />)}
                 </div>
               </section>
             )}
@@ -794,7 +867,7 @@ export default function UniversityClient({ initialTargets, userId, profileDefaul
               <section>
                 <div className="text-[11px] font-bold text-[var(--t300)] uppercase tracking-widest mb-3">📬 Applied</div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {byStatus.applied.map(t => <UniversityCard key={t.id} target={t} userId={userId} onDelete={handleDelete} onUpdate={handleUpdate} />)}
+                  {byStatus.applied.map(t => <UniversityCard key={t.id} target={t} insight={insights[t.id]} userId={userId} onDelete={handleDelete} onUpdate={handleUpdate} />)}
                 </div>
               </section>
             )}
@@ -802,7 +875,7 @@ export default function UniversityClient({ initialTargets, userId, profileDefaul
               <section>
                 <div className="text-[11px] font-bold text-[var(--t300)] uppercase tracking-widest mb-3">🔍 Researching</div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {byStatus.researching.map(t => <UniversityCard key={t.id} target={t} userId={userId} onDelete={handleDelete} onUpdate={handleUpdate} />)}
+                  {byStatus.researching.map(t => <UniversityCard key={t.id} target={t} insight={insights[t.id]} userId={userId} onDelete={handleDelete} onUpdate={handleUpdate} />)}
                 </div>
               </section>
             )}
@@ -810,7 +883,7 @@ export default function UniversityClient({ initialTargets, userId, profileDefaul
               <section>
                 <div className="text-[11px] font-bold text-[var(--t300)] uppercase tracking-widest mb-3">Universities not pursued</div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {byStatus.rejected.map(t => <UniversityCard key={t.id} target={t} userId={userId} onDelete={handleDelete} onUpdate={handleUpdate} />)}
+                  {byStatus.rejected.map(t => <UniversityCard key={t.id} target={t} insight={insights[t.id]} userId={userId} onDelete={handleDelete} onUpdate={handleUpdate} />)}
                 </div>
               </section>
             )}
