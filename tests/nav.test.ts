@@ -1,26 +1,34 @@
 import { describe, it, expect } from 'vitest'
-import { orderNavItems, togglePin } from '@/lib/nav'
+import { togglePin, groupNavItems } from '@/lib/nav'
 
-const items = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/roadmap', label: 'Roadmap' },
-  { href: '/portfolio', label: 'Portfolio' },
-  { href: '/universities', label: 'Universities' },
-]
+describe('groupNavItems', () => {
+  const grouped = [
+    { href: '/dashboard', label: 'Dashboard', group: 'Journey' },
+    { href: '/roadmap', label: 'Roadmap', group: 'Journey' },
+    { href: '/universities', label: 'Universities', group: 'Applications' },
+    { href: '/community', label: 'Community', group: 'Community' },
+  ]
 
-describe('orderNavItems', () => {
-  it('floats pinned items to the top in pin order, rest keep default order', () => {
-    const ordered = orderNavItems(items, ['/universities', '/roadmap'])
-    expect(ordered.map((i) => i.href)).toEqual(['/universities', '/roadmap', '/dashboard', '/portfolio'])
+  it('groups items by their group label in first-seen order', () => {
+    expect(groupNavItems(grouped, [])).toEqual([
+      { label: 'Journey', items: [grouped[0], grouped[1]] },
+      { label: 'Applications', items: [grouped[2]] },
+      { label: 'Community', items: [grouped[3]] },
+    ])
   })
 
-  it('returns the default order when nothing is pinned', () => {
-    expect(orderNavItems(items, []).map((i) => i.href)).toEqual(items.map((i) => i.href))
+  it('floats pinned items into a leading unlabelled section, in pin order', () => {
+    const sections = groupNavItems(grouped, ['/community', '/roadmap'])
+    expect(sections[0]).toEqual({ label: null, items: [grouped[3], grouped[1]] })
+    expect(sections.slice(1)).toEqual([
+      { label: 'Journey', items: [grouped[0]] },
+      { label: 'Applications', items: [grouped[2]] },
+    ])
   })
 
-  it('ignores pinned hrefs that no longer exist', () => {
-    const ordered = orderNavItems(items, ['/gone', '/portfolio'])
-    expect(ordered.map((i) => i.href)).toEqual(['/portfolio', '/dashboard', '/roadmap', '/universities'])
+  it('drops a group section when all its items are pinned', () => {
+    const sections = groupNavItems(grouped, ['/universities'])
+    expect(sections.map(s => s.label)).toEqual([null, 'Journey', 'Community'])
   })
 })
 

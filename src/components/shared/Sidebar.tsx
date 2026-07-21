@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { orderNavItems, togglePin } from '@/lib/nav'
+import { groupNavItems, togglePin } from '@/lib/nav'
 import { ProfileMenu } from './ProfileMenu'
 
 const PINS_STORAGE_KEY = 'novara-nav-pins'
@@ -13,6 +13,8 @@ interface NavItem {
   href: string
   label: string
   icon: React.ReactNode
+  /** Optional pillar section label; ungrouped items render without a heading. */
+  group?: string
 }
 
 interface SidebarProps {
@@ -49,7 +51,7 @@ export function Sidebar({ items, userName, userEmail, isParent, childName, gener
     })
   }
 
-  const orderedItems = orderNavItems(items, pinned)
+  const sections = groupNavItems(items, pinned)
 
   return (
     <>
@@ -95,9 +97,16 @@ export function Sidebar({ items, userName, userEmail, isParent, childName, gener
         </div>
       )}
 
-      {/* Nav — pinned items float to the top; pin/unpin via the 📌 toggle */}
+      {/* Nav — pillar sections; pinned items float to the top via the 📌 toggle */}
       <nav className="px-2 py-2.5 flex-1 overflow-y-auto">
-        {orderedItems.map((item) => {
+        {sections.map((section, si) => (
+          <div key={section.label ?? `pinned-${si}`} className={si > 0 ? 'mt-3' : undefined}>
+            {section.label && (
+              <div className="px-3 pb-1 text-[10px] font-bold text-[var(--t300)] uppercase tracking-[.08em]">
+                {section.label}
+              </div>
+            )}
+            {section.items.map((item) => {
           const isPinned = pinned.includes(item.href)
           return (
             <div key={item.href} className="relative group">
@@ -127,7 +136,9 @@ export function Sidebar({ items, userName, userEmail, isParent, childName, gener
               </button>
             </div>
           )
-        })}
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Account menu (avatar → settings, language, subscription, log out) */}
