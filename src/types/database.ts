@@ -79,6 +79,12 @@ export type Database = {
         Update: { id?: string; parent_id?: string; student_id?: string }
         Relationships: []
       }
+      progress_shares: {
+        Row:    { id: string; token: string; student_id: string; created_by: string; created_at: string; expires_at: string; revoked_at: string | null }
+        Insert: { id?: string; token: string; student_id: string; created_by: string; created_at?: string; expires_at: string; revoked_at?: string | null }
+        Update: { revoked_at?: string | null }
+        Relationships: []
+      }
       roadmaps: {
         Row:    { id: string; student_id: string; status: 'active' | 'archived'; raw_json: unknown; generated_at: string }
         Insert: { id?: string; student_id: string; status?: 'active' | 'archived'; raw_json: unknown }

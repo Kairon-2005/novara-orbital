@@ -4,6 +4,7 @@ import { createServerClient } from '@/db/server'
 import { buildProgressSnapshot } from '@/lib/progress'
 import { getLatestAssessment } from '@/lib/data'
 import { JourneyCard } from '@/components/ui/JourneyCard'
+import ShareProgressButton from './ShareProgressButton'
 
 // Simplified-Chinese labels for the dimension-based assessment
 const DIM_NAME_ZH: Record<string, string> = {
@@ -189,9 +190,7 @@ export default async function ParentDashboardPage() {
           </div>
           <div className="text-[11px] text-[var(--t500)] mt-0.5">{todayCN()}</div>
         </div>
-        <button className="inline-flex items-center px-3 py-1.5 rounded-[8px] text-[12px] font-semibold border-[1.5px] text-white bg-[#C81E1E] border-[#C81E1E] hover:bg-[#B91C1C] transition">
-          切换语言
-        </button>
+        <ShareProgressButton />
       </div>
 
       {/* ── Page content ────────────────────────────────────────────────── */}
