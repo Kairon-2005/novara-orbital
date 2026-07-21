@@ -227,9 +227,6 @@ export default async function DashboardPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Link href="/homestay" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold border-[1.5px] border-[var(--blue)] text-[var(--blue)] bg-white hover:bg-[var(--blue-50)] transition">
-            Find Homestay
-          </Link>
           <Link href="/roadmap" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)] transition">
             View Roadmap →
           </Link>

@@ -8,27 +8,6 @@
 // NOTE: the `Mock*` prefix is historical (these started as mock data); they are
 // now the app's real view-model types.
 
-// ── Schools ───────────────────────────────────────────────────────────────────
-
-export type SchoolType =
-  | 'primary' | 'secondary' | 'jc' | 'poly' | 'university' | 'language_school' | 'diploma'
-
-export type Curriculum = 'IB' | 'A-Level' | 'AP' | 'O-Level' | 'Local' | 'Mixed'
-
-export type MockSchool = {
-  id: string
-  school_name: string
-  slug: string
-  school_type: SchoolType
-  curriculum: Curriculum | null
-  zone: string
-  address: string
-  description: string
-  website: string
-  tuition_range?: string          // SGD/year (indicative)
-  highlights?: string[]
-}
-
 // ── Achievements ──────────────────────────────────────────────────────────────
 
 export type AchievementCategory =
