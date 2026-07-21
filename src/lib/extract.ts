@@ -47,3 +47,22 @@ export async function extractText(buffer: Buffer, mime: string): Promise<string>
     return ''
   }
 }
+
+export type PdfMeta = { producer: string | null; creator: string | null; creationDateRaw: string | null }
+
+/** Best-effort PDF metadata for forensics; null for non-PDFs or parse failures. */
+export async function extractPdfMeta(buffer: Buffer, mime: string): Promise<PdfMeta | null> {
+  if (extractorKind(mime) !== 'pdf') return null
+  try {
+    // @ts-ignore — pdf-parse ships without bundled types
+    const pdfParse = (await import('pdf-parse')).default
+    const info = (await pdfParse(buffer)).info ?? {}
+    return {
+      producer: typeof info.Producer === 'string' ? info.Producer : null,
+      creator: typeof info.Creator === 'string' ? info.Creator : null,
+      creationDateRaw: typeof info.CreationDate === 'string' ? info.CreationDate : null,
+    }
+  } catch {
+    return null
+  }
+}

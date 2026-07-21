@@ -6,7 +6,11 @@
 
 import { NextResponse } from 'next/server'
 import { createRouteClient, createAdminClient } from '@/db/server'
-import { extractText } from '@/lib/extract'
+import { extractText, extractPdfMeta } from '@/lib/extract'
+import {
+  sha256Hex, parsePdfDate, assessProofForensics, decideDuplicateEvidence, applyForensicsGate,
+  type ForensicsResult,
+} from '@/lib/proof-forensics'
 import { validateReport, type ReportDraft } from '@/lib/community'
 import { runVerification, ingestReport } from '@/lib/community-reports'
 import type { ReportProofKind } from '@/types/database'
@@ -67,11 +71,22 @@ export async function POST(request: Request) {
   try { kinds = JSON.parse(String(form.get('proofKinds') ?? '[]')) } catch { kinds = [] }
 
   const evidenceTexts: string[] = []
+  const fileHashes: string[] = []
+  const forensicsResults: ForensicsResult[] = []
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     if (file.size === 0 || file.size > MAX_BYTES) continue
     const buf = Buffer.from(await file.arrayBuffer())
     const text = await extractText(buf, file.type)
+    const hash = sha256Hex(buf)
+    const meta = await extractPdfMeta(buf, file.type)
+    if (meta) {
+      forensicsResults.push(assessProofForensics({
+        producer: meta.producer,
+        creator: meta.creator,
+        creationDate: parsePdfDate(meta.creationDateRaw),
+      }, draft.applyYear))
+    }
     const path = `${user.id}/${report.id}/${file.name}`
     const { error: upErr } = await supabase.storage
       .from('admission-proofs')
@@ -87,8 +102,32 @@ export async function POST(request: Request) {
       mime: file.type || null,
       bytes: file.size,
       extracted_text: text || null,
+      file_hash: hash,
     })
+    fileHashes.push(hash)
     if (text) evidenceTexts.push(text)
+  }
+
+  // Forensics: has this exact evidence file backed a DIFFERENT author's case?
+  // (Service role — proofs are owner-scoped under RLS.)
+  const forensicsAdmin = createAdminClient()
+  let isDuplicate = false
+  if (fileHashes.length > 0) {
+    const { data: sameHash } = await forensicsAdmin
+      .from('report_proofs')
+      .select('file_hash, report:admission_reports!inner(author_id)')
+      .in('file_hash', fileHashes)
+      .neq('report_id', report.id)
+    const owners = (sameHash ?? [])
+      .map(r => (r.report as unknown as { author_id: string } | null)?.author_id)
+      .filter((a): a is string => Boolean(a))
+    isDuplicate = decideDuplicateEvidence({ ownersOfSameHash: owners, currentAuthor: user.id })
+  }
+  const forensics: ForensicsResult = {
+    signals: Array.from(new Set(
+      forensicsResults.flatMap(f => f.signals).concat(isDuplicate ? ['duplicate_evidence'] : []),
+    )),
+    suspicious: isDuplicate || forensicsResults.some(f => f.suspicious),
   }
 
   // 3) Verify against the evidence and persist the verdict with the service role.
@@ -108,23 +147,33 @@ export async function POST(request: Request) {
     ).catch(() => null)
 
     if (outcome) {
-      status = outcome.status
+      // Forensics gate: duplicates force mismatch; suspicious metadata
+      // downgrades an auto-verify to unverified (admin review). Never upgrades.
+      status = applyForensicsGate(outcome.status, forensics, isDuplicate)
       conflicts = outcome.verdict.conflicts
       const admin = createAdminClient()
       await admin
         .from('admission_reports')
         .update({
-          verification_status: outcome.status,
-          verification_detail: outcome.detail,
-          verified_at: outcome.status === 'verified' ? nowIso : null,
+          verification_status: status,
+          verification_detail: { ...(outcome.detail as unknown as Record<string, unknown>), forensics },
+          verified_at: status === 'verified' ? nowIso : null,
         })
         .eq('id', report.id)
 
       // 4) Only verified cases settle into the wiki/KB (best-effort, idempotent).
-      if (outcome.status === 'verified') {
+      if (status === 'verified') {
         await ingestReport(admin, report.id, nowIso).catch(() => { /* non-blocking */ })
       }
     }
+  } else if (isDuplicate) {
+    // No usable evidence text, but the uploaded file itself is someone else's
+    // proof — record the hard signal rather than leaving the case unverified.
+    status = 'mismatch'
+    await forensicsAdmin
+      .from('admission_reports')
+      .update({ verification_status: 'mismatch', verification_detail: { forensics } })
+      .eq('id', report.id)
   }
 
   return NextResponse.json({
