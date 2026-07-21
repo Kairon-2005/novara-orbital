@@ -123,6 +123,24 @@ export type Database = {
         Update: { count?: number }
         Relationships: []
       }
+      school_email_verifications: {
+        Row: {
+          id: string; user_id: string; email: string; domain: string; institution: string
+          code_hash: string; expires_at: string; attempts: number
+          sends_today: number; send_day: string; verified_at: string | null; created_at: string
+        }
+        Insert: {
+          id?: string; user_id: string; email: string; domain: string; institution: string
+          code_hash: string; expires_at: string; attempts?: number
+          sends_today?: number; send_day?: string; verified_at?: string | null
+        }
+        Update: {
+          email?: string; domain?: string; institution?: string; code_hash?: string
+          expires_at?: string; attempts?: number; sends_today?: number
+          send_day?: string; verified_at?: string | null
+        }
+        Relationships: []
+      }
       progress_shares: {
         Row:    { id: string; token: string; student_id: string; created_by: string; created_at: string; expires_at: string; revoked_at: string | null }
         Insert: { id?: string; token: string; student_id: string; created_by: string; created_at?: string; expires_at: string; revoked_at?: string | null }
@@ -421,6 +439,7 @@ export type Database = {
           verification_status: VerificationStatus
           verification_detail: unknown | null
           verified_at: string | null; ingested_at: string | null
+          staff_reviewed_at: string | null
           visibility: 'public' | 'contributors'
           upvotes: number; downvotes: number
           moderation_status: 'approved' | 'flagged' | 'removed'; created_at: string
@@ -458,12 +477,12 @@ export type Database = {
         Row: {
           id: string; report_id: string; storage_path: string
           doc_kind: ReportProofKind; mime: string | null; bytes: number | null
-          extracted_text: string | null; created_at: string
+          extracted_text: string | null; file_hash: string | null; created_at: string
         }
         Insert: {
           id?: string; report_id: string; storage_path: string
           doc_kind: ReportProofKind; mime?: string | null; bytes?: number | null
-          extracted_text?: string | null
+          extracted_text?: string | null; file_hash?: string | null
         }
         Update: { extracted_text?: string | null }
         Relationships: []

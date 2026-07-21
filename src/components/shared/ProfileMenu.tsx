@@ -17,12 +17,12 @@ type Lang = 'en' | 'zh'
 const COPY = {
   en: {
     account: 'Account', subscription: 'Subscription', language: 'Language',
-    editProfile: 'Edit profile', logout: 'Log out', freePlan: 'Free plan',
+    editProfile: 'Edit profile', schoolEmail: 'School email', logout: 'Log out', freePlan: 'Free plan',
     used: (n: number) => `${n} AI generation${n === 1 ? '' : 's'} used`,
   },
   zh: {
     account: '账户', subscription: '订阅', language: '语言',
-    editProfile: '编辑资料', logout: '退出登录', freePlan: '免费版',
+    editProfile: '编辑资料', schoolEmail: '学校邮箱验证', logout: '退出登录', freePlan: '免费版',
     used: (n: number) => `已使用 ${n} 次 AI 生成`,
   },
 } satisfies Record<Lang, unknown>
@@ -159,6 +159,21 @@ export function ProfileMenu({
                 <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z" />
               </svg>
               {t.editProfile}
+            </Link>
+          )}
+
+          {/* School email verification (student only) */}
+          {!isParent && (
+            <Link
+              href="/verify-school-email"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] text-[var(--t700)] hover:bg-[var(--bg)] transition"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="M22 4L12 14.01l-3-3" />
+              </svg>
+              {t.schoolEmail}
             </Link>
           )}
 
