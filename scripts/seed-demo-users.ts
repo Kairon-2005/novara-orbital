@@ -4,8 +4,8 @@
 // Supabase project pointed to by .env.local, so anyone can sign in with the
 // printed email + password and "feel" the product end-to-end.
 //
-//   1) Li Wei      → demo.cs@novara.sg   — target: NUS Computer Science (Common track)
-//   2) Chen Yixin  → demo.biz@novara.sg  — target: NUS Business (BBA)
+//   1) Li Wei      → demo.cs@novara.vip   — target: NUS Computer Science (Common track)
+//   2) Chen Yixin  → demo.biz@novara.vip  — target: NUS Business (BBA)
 //
 // Each account is seeded with: profile + onboarding, an AI roadmap + milestones,
 // calendar events, fees + expenses + insurance, portfolio assessment + readiness,
@@ -131,7 +131,7 @@ type Demo = {
 
 // ── Student A — Li Wei — NUS Computer Science (Common track) ─────────────────────
 const liWei: Demo = {
-  email: 'demo.cs@novara.sg',
+  email: 'demo.cs@novara.vip',
   password: 'NovaraDemo2026',
   displayName: 'Li Wei',
   penName: 'CodeWei',
@@ -342,7 +342,7 @@ const liWei: Demo = {
 
 // ── Student B — Chen Yixin — NUS Business (BBA) ──────────────────────────────────
 const chenYixin: Demo = {
-  email: 'demo.biz@novara.sg',
+  email: 'demo.biz@novara.vip',
   password: 'NovaraDemo2026',
   displayName: 'Chen Yixin',
   penName: 'YixinC',
