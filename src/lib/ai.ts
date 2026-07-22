@@ -65,6 +65,59 @@ export const chatJson: ChatJson = async (system, user) => {
 
 // ── Roadmap Generation ────────────────────────────────────────
 
+const MILESTONE_TYPES = ['exam', 'competition', 'cca', 'application', 'academic', 'other'] as const
+type MilestoneType = (typeof MILESTONE_TYPES)[number]
+
+function coerceType(v: unknown): MilestoneType {
+  return (MILESTONE_TYPES as readonly string[]).includes(v as string) ? (v as MilestoneType) : 'other'
+}
+
+function coerceMonth(v: unknown): number | undefined {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) && n >= 1 && n <= 12 ? Math.trunc(n) : undefined
+}
+
+// The model returns json_object, but nothing guarantees the SHAPE: it may omit
+// `years`, return a non-array, or emit milestones missing a title or with an
+// invalid `type` (which would later violate the milestones enum on save and
+// crash the preview modal). Validate the envelope and coerce each row into a
+// safe shape so downstream rendering/persistence can't break on bad output.
+export function normalizeGeneratedRoadmap(raw: unknown, profile: StudentProfile): GeneratedRoadmap {
+  const years = (raw as { years?: unknown })?.years
+  if (!Array.isArray(years) || years.length === 0) {
+    throw new Error('generateRoadmap: AI response missing a non-empty "years" array')
+  }
+
+  const normalized: GeneratedRoadmap['years'] = years.map((y) => {
+    const yr = y as Record<string, unknown>
+    const yearNum = typeof yr.year === 'number' ? yr.year : Number(yr.year)
+    const rawMilestones = Array.isArray(yr.milestones) ? yr.milestones : []
+    const milestones = rawMilestones
+      .map((m) => {
+        const ms = m as Record<string, unknown>
+        const title = typeof ms.title === 'string' ? ms.title.trim() : ''
+        if (!title) return null // a milestone with no title is unusable — drop it
+        return {
+          type: coerceType(ms.type),
+          title,
+          description: typeof ms.description === 'string' ? ms.description : '',
+          month: coerceMonth(ms.month),
+          dueDate: typeof ms.dueDate === 'string' ? ms.dueDate : undefined,
+        }
+      })
+      .filter((m): m is NonNullable<typeof m> => m !== null)
+
+    return {
+      year: Number.isFinite(yearNum) ? yearNum : new Date().getFullYear(),
+      yearLabel: typeof yr.yearLabel === 'string' ? yr.yearLabel : String(yearNum),
+      keyMilestone: typeof yr.keyMilestone === 'string' ? yr.keyMilestone : '',
+      milestones,
+    }
+  })
+
+  return { years: normalized, generatedFor: profile }
+}
+
 export type ExistingMilestone = {
   type: string
   title: string
@@ -153,10 +206,8 @@ export async function generateRoadmap(
     ],
   }))
 
-  const parsed = parseJson<{ years: GeneratedRoadmap['years'] }>(
-    response.choices[0].message.content, 'generateRoadmap'
-  )
-  return { years: parsed.years, generatedFor: profile }
+  const parsed = parseJson<unknown>(response.choices[0].message.content, 'generateRoadmap')
+  return normalizeGeneratedRoadmap(parsed, profile)
 }
 
 // ── Translation (English → Chinese) ──────────────────────────

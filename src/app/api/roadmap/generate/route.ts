@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/db/server'
-import { checkAndConsumeQuota, FREE_GENERATIONS_PER_YEAR } from '@/lib/roadmap-quota'
+import { getRoadmapQuota, consumeRoadmapQuota, FREE_GENERATIONS_PER_YEAR } from '@/lib/roadmap-quota'
 import { getLatestAssessment } from '@/lib/data'
 import { generateRoadmap } from '@/lib/ai'
 import type { ExistingMilestone, RoadmapAssessmentContext } from '@/lib/ai'
@@ -23,9 +23,12 @@ export async function POST() {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  // ── Quota check (consumed only once per generate) ─────────────
-  const quota = await checkAndConsumeQuota(supabase, user.id)
-  if (quota === 'blocked') {
+  // ── Quota check (read-only — credit is consumed AFTER success) ─
+  // Consuming up-front meant any transient AI failure (timeout, bad JSON,
+  // missing key) still burned a free credit, so repeated failures silently
+  // exhausted the allowance. We now charge only once generation succeeds.
+  const quota = await getRoadmapQuota(supabase, user.id)
+  if (!quota.allowed) {
     return NextResponse.json(
       { error: 'quota_exceeded', message: `You have used all ${FREE_GENERATIONS_PER_YEAR} free AI generations for this year. Upgrade to generate again.` },
       { status: 402 }
@@ -98,6 +101,8 @@ export async function POST() {
   const enrollmentYear = sp.target_enrollment_year ?? currentYear + 4
   try {
     const roadmap = await generateRoadmap(profile, existingMilestones, { currentYear, enrollmentYear }, assessment)
+    // Only now that we have a usable roadmap do we charge the credit.
+    await consumeRoadmapQuota(supabase, user.id)
     return NextResponse.json({ roadmap })
   } catch (err) {
     console.error('[roadmap/generate]', err)
