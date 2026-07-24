@@ -19,7 +19,7 @@
 
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 // ── env ───────────────────────────────────────────────────────────────────────
@@ -103,6 +103,23 @@ type DocSpec = {
 
 type ProofSpec = { docKind: 'offer_letter' | 'transcript' | 'test_score' | 'other'; pdfTitle: string; pdfLines: string[] }
 
+// Essay Studio (MS4): a draft + one round of AI critique. The critique shape
+// matches EssayFeedback in src/lib/essay-critique.ts — feedback only, no rewrite.
+type EssaySpec = {
+  title: string
+  targetName: string | null   // links to a university_target by name (null = general)
+  prompt: string
+  content: string
+  feedback: {
+    overall: string
+    structure: string[]
+    specificity: string[]
+    evidenceAlignment: string[]
+    cliches: string[]
+    revisionPriorities: string[]
+  }
+}
+
 type Demo = {
   email: string
   password: string
@@ -126,7 +143,14 @@ type Demo = {
     grades: string; english_test: string; standardized_tests: string; activities: string
     admission_experience: string; interview_experience: string
     proof: ProofSpec
+    // MS6 trust tier: 'staff' → 人工复核 (top), 'email' → 邮箱验证 (needs schoolEmail
+    // matching this case's institution), else plain ai_verified.
+    trust: 'staff' | 'email'
   }
+  essays: EssaySpec[]
+  // MS6 school-email verification — drives the 邮箱验证 trust tier on cases whose
+  // institution matches. Optional; applicants may not have a university mailbox.
+  schoolEmail?: { email: string; domain: string; institution: string }
 }
 
 // ── Student A — Li Wei — NUS Computer Science (Common track) ─────────────────────
@@ -337,7 +361,44 @@ const liWei: Demo = {
         'Yours sincerely,', 'Office of Admissions', 'Nanyang Technological University',
       ],
     },
+    trust: 'email', // matches the verified NTU mailbox below → 邮箱验证 badge
   },
+  // Offer-holder with a provisional NTU mailbox → his NTU case earns 邮箱验证.
+  schoolEmail: { email: 'liwei.2027@e.ntu.edu.sg', domain: 'e.ntu.edu.sg', institution: 'NTU' },
+  essays: [
+    {
+      title: 'Why Computer Science at NUS',
+      targetName: 'National University of Singapore',
+      prompt: 'In about 600 words, tell us why you wish to study Computer Science and why NUS Computing is the right place for you.',
+      content:
+        'I have always loved computers. Ever since I was young I was fascinated by how they work, and I have always been passionate about technology and solving problems. ' +
+        'In secondary school I joined the Computing Club and later became its president, where I organised weekly sessions for other students. ' +
+        'I also took part in the National Olympiad in Informatics and won a bronze medal, which taught me a lot about algorithms and perseverance. ' +
+        'NUS Computing is a world-class school with an excellent common curriculum, and I believe it would be the perfect place for me to grow. ' +
+        'I am a hard worker and a fast learner, and I am confident that I would be a great fit for the programme and contribute to the community.',
+      feedback: {
+        overall: 'A sincere draft with real material behind it, but right now it reads like many other applications — the opening is generic and the strongest evidence is under-used. The NOI experience is your differentiator; build the essay around one concrete moment from it rather than listing achievements.',
+        structure: [
+          'Opening ("I have always loved computers") is the most common admissions cliché — cut it and open in the middle of a specific scene.',
+          'The paragraph on NUS is generic praise; move it after your story and tie it to specific NUS Computing modules or the common curriculum.',
+        ],
+        specificity: [
+          '"passionate about technology and solving problems" — replace with the actual problem you solved at NOI and how you approached it.',
+          '"world-class school with an excellent common curriculum" — name the specific module or research area that draws you.',
+        ],
+        evidenceAlignment: [
+          'You mention the NOI bronze in one line, but your records show it was rank 47 of 612 with a 312/400 score — lead with that concrete result and what you learned debugging under time pressure.',
+          'Your Computing Club presidency is stated but not shown — describe one session you ran and its effect on a specific student.',
+        ],
+        cliches: ['"I have always loved computers"', '"hard worker and a fast learner"', '"perfect place for me to grow"'],
+        revisionPriorities: [
+          'Replace the generic opening with a specific NOI or club moment.',
+          'Cut both clichés in the final paragraph and show the trait instead.',
+          'Connect your interests to one named NUS Computing offering.',
+        ],
+      },
+    },
+  ],
 }
 
 // ── Student B — Chen Yixin — NUS Business (BBA) ──────────────────────────────────
@@ -549,7 +610,41 @@ const chenYixin: Demo = {
         'Warm regards,', 'Office of Undergraduate Admissions', 'Singapore Management University',
       ],
     },
+    trust: 'staff', // admin-confirmed → 人工复核 (top tier), no school email needed
   },
+  essays: [
+    {
+      title: 'BBA Personal Statement — Leadership',
+      targetName: 'National University of Singapore',
+      prompt: 'Describe a leadership experience and what it taught you about yourself. (~500 words)',
+      content:
+        'Leadership has always been a big part of who I am. As captain of my school debate team, I learned that a good leader must lead by example and always put the team first. ' +
+        'We faced many challenges throughout the season, but through hard work and determination we overcame them together. ' +
+        'I organised extra practice sessions and made sure everyone felt included and motivated. ' +
+        'In the end, we won the regional championship, which was a proud moment for all of us. ' +
+        'This experience taught me the importance of teamwork, communication, and never giving up, qualities I will bring to the NUS BBA programme.',
+      feedback: {
+        overall: 'The championship is a strong anchor, but the essay tells rather than shows and stays at the level of generic leadership lessons. Pick the single hardest moment of the season and let one scene carry the reflection — admissions readers have seen "lead by example" thousands of times.',
+        structure: [
+          'Opening states a conclusion ("leadership has always been a big part of who I am") instead of dropping the reader into a moment — start at the tense pre-final practice.',
+          'The reflection is compressed into the last sentence; give it its own paragraph tied to a specific decision you made.',
+        ],
+        specificity: [
+          '"we faced many challenges" — name one: a losing round, a teammate conflict, a motion you were unprepared for.',
+          '"made sure everyone felt included" — show the specific thing you did for one specific teammate.',
+        ],
+        evidenceAlignment: [
+          'Your records list the debate captaincy and a regional title — good, but also connect this to the entrepreneurship/finance interests in your profile so the BBA fit is explicit.',
+        ],
+        cliches: ['"lead by example"', '"put the team first"', '"never giving up"'],
+        revisionPriorities: [
+          'Open inside one scene from the hardest round of the season.',
+          'Replace the three flagged clichés with concrete actions and decisions.',
+          'Link the lesson to why BBA specifically, not leadership in general.',
+        ],
+      },
+    },
+  ],
 }
 
 const DEMOS = [liWei, chenYixin]
@@ -665,6 +760,39 @@ async function seedDemo(admin: SupabaseClient, d: Demo) {
     d.targets.map((t) => ({ student_id: userId, ...t, plan_updated_at: (t as any).application_plan ? new Date('2026-06-15T09:00:00Z').toISOString() : null, gap_updated_at: new Date('2026-06-15T09:00:00Z').toISOString() })))
   console.log(`  • ${d.targets.length} university targets`)
 
+  // 8b) essays + one AI-critique round (MS4 Essay Studio). Link by target name.
+  const { data: targetRows } = await admin
+    .from('university_targets').select('id, name').eq('student_id', userId)
+  const targetByName = new Map((targetRows ?? []).map((r) => [r.name as string, r.id as string]))
+  await admin.from('essays').delete().eq('student_id', userId) // cascades essay_feedback
+  for (const es of d.essays) {
+    const essayId = randomUUID()
+    const { error: eErr } = await admin.from('essays').insert({
+      id: essayId, student_id: userId,
+      target_id: es.targetName ? targetByName.get(es.targetName) ?? null : null,
+      title: es.title, prompt: es.prompt, content: es.content,
+    })
+    if (eErr) throw new Error(`essays insert: ${eErr.message}`)
+    const { error: fErr } = await admin.from('essay_feedback').insert({
+      essay_id: essayId, content_snapshot: es.content, feedback: es.feedback,
+      created_at: new Date('2026-06-18T10:00:00Z').toISOString(),
+    })
+    if (fErr) throw new Error(`essay_feedback insert: ${fErr.message}`)
+  }
+  console.log(`  • ${d.essays.length} essay(s) + critique`)
+
+  // 8c) school-email verification (MS6) — drives the 邮箱验证 trust tier.
+  if (d.schoolEmail) {
+    await upsertSingle(admin, 'school_email_verifications', 'user_id', userId, {
+      email: d.schoolEmail.email, domain: d.schoolEmail.domain, institution: d.schoolEmail.institution,
+      code_hash: 'demo-seed', // never checked once verified_at is set
+      expires_at: new Date('2026-06-16T00:00:00Z').toISOString(),
+      attempts: 0, sends_today: 1, send_day: '2026-06-15',
+      verified_at: new Date('2026-06-15T12:00:00Z').toISOString(),
+    })
+    console.log(`  • school-email verified (${d.schoolEmail.institution})`)
+  }
+
   // 9) documents → upload PDFs to student-documents, insert metadata
   await admin.from('student_documents').delete().eq('student_id', userId)
   for (const doc of d.documents) {
@@ -692,8 +820,10 @@ async function seedDemo(admin: SupabaseClient, d: Demo) {
       grades: c.grades, english_test: c.english_test, standardized_tests: c.standardized_tests, activities: c.activities,
       admission_experience: c.admission_experience, interview_experience: c.interview_experience,
       verification_status: 'verified', verified_at: new Date('2026-06-12T09:00:00Z').toISOString(),
-      verification_detail: { method: 'demo-seed', note: 'Seeded demo case with attached offer letter.' },
+      verification_detail: { method: 'demo-seed', note: 'Seeded demo case with attached offer letter.', forensics: { signals: [], suspicious: false } },
       ingested_at: new Date('2026-06-12T09:05:00Z').toISOString(), visibility: 'public',
+      // MS6: 'staff' review is the top trust tier; 'email' relies on the verified mailbox above.
+      staff_reviewed_at: c.trust === 'staff' ? new Date('2026-06-13T14:00:00Z').toISOString() : null,
       upvotes: 7, downvotes: 0,
     })
     if (error) throw new Error(`admission_reports insert: ${error.message}`)
@@ -707,10 +837,12 @@ async function seedDemo(admin: SupabaseClient, d: Demo) {
     const { error: rowErr } = await admin.from('report_proofs').insert({
       report_id: reportId, storage_path: proofPath, doc_kind: c.proof.docKind,
       mime: 'application/pdf', bytes: pdf.length, extracted_text: c.proof.pdfLines.join(' '),
+      file_hash: createHash('sha256').update(pdf).digest('hex'), // MS6 dedup fingerprint
     })
     if (rowErr) throw new Error(`report_proofs insert: ${rowErr.message}`)
   }
-  console.log(`  • contributed admission case (${c.institution}) + offer-letter proof`)
+  const tierLabel = c.trust === 'staff' ? 'staff-reviewed 人工复核' : 'email-verified 邮箱验证'
+  console.log(`  • contributed admission case (${c.institution}) + offer-letter proof · ${tierLabel}`)
 
   return userId
 }
