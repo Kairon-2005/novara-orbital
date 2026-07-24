@@ -649,6 +649,15 @@ const chenYixin: Demo = {
 
 const DEMOS = [liWei, chenYixin]
 
+// Parent account (家长端) — Li Ming, linked to Li Wei. Drives the parent-side
+// features: the ZH-by-default parent panel (MS5) and the 分享进度 share (MS3).
+const PARENT = {
+  email: 'demo.parent@novara.vip',
+  password: 'NovaraDemo2026',
+  displayName: 'Li Ming',
+  linkedStudentEmail: 'demo.cs@novara.vip', // Li Wei
+}
+
 // ── seeding engine ─────────────────────────────────────────────────────────────
 async function findUserByEmail(admin: SupabaseClient, email: string): Promise<string | null> {
   for (let page = 1; page <= 20; page++) {
@@ -847,6 +856,54 @@ async function seedDemo(admin: SupabaseClient, d: Demo) {
   return userId
 }
 
+async function seedParent(admin: SupabaseClient, p: typeof PARENT, studentId: string) {
+  console.log(`\n── ${p.displayName}  <${p.email}>  (parent) ──────────────────────`)
+
+  let userId = await findUserByEmail(admin, p.email)
+  if (userId) {
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      password: p.password, email_confirm: true,
+      user_metadata: { role: 'parent', display_name: p.displayName },
+    })
+    if (error) throw new Error(`updateUser: ${error.message}`)
+    console.log(`  • auth user exists → password reset (${userId})`)
+  } else {
+    const { data, error } = await admin.auth.admin.createUser({
+      email: p.email, password: p.password, email_confirm: true,
+      user_metadata: { role: 'parent', display_name: p.displayName },
+    })
+    if (error) throw new Error(`createUser: ${error.message}`)
+    userId = data.user!.id
+    console.log(`  • auth user created (${userId})`)
+    await new Promise((r) => setTimeout(r, 400))
+  }
+
+  // Parent panel defaults to Simplified Chinese (MS5).
+  await upsertSingle(admin, 'profiles', 'id', userId, {
+    role: 'parent', display_name: p.displayName, preferred_language: 'zh',
+  })
+
+  // Link to the child (parent_links has a composite key — reset then insert).
+  await admin.from('parent_links').delete().eq('parent_id', userId)
+  const { error: linkErr } = await admin.from('parent_links')
+    .insert({ parent_id: userId, student_id: studentId })
+  if (linkErr) throw new Error(`parent_links insert: ${linkErr.message}`)
+  console.log('  • linked to child')
+
+  // Pre-seed one active progress share so /share/progress/[token] is demoable
+  // immediately (MS3-5). Parents can also mint fresh links from the dashboard.
+  const token = createHash('sha256').update(`demo-share:${userId}`).digest('base64url').slice(0, 24)
+  await admin.from('progress_shares').delete().eq('created_by', userId)
+  const { error: shareErr } = await admin.from('progress_shares').insert({
+    token, student_id: studentId, created_by: userId,
+    expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  })
+  if (shareErr) throw new Error(`progress_shares insert: ${shareErr.message}`)
+  console.log(`  • active progress share → /share/progress/${token}`)
+
+  return { userId, shareToken: token }
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────
 async function main() {
   loadEnvLocal()
@@ -860,23 +917,42 @@ async function main() {
   const admin = createClient(URL, KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 
   const results: Array<{ email: string; password: string; name: string; target: string; id: string }> = []
+  const byEmail = new Map<string, string>()
   for (const d of DEMOS) {
     const id = await seedDemo(admin, d)
+    byEmail.set(d.email, id)
     results.push({
       email: d.email, password: d.password, name: d.displayName,
       target: `${d.studentProfile.target_university} — ${d.studentProfile.target_programme}`, id,
     })
   }
 
+  // Parent, linked to the child named in PARENT.linkedStudentEmail.
+  const childId = byEmail.get(PARENT.linkedStudentEmail)
+  let parentShareToken: string | null = null
+  if (childId) {
+    const { shareToken } = await seedParent(admin, PARENT, childId)
+    parentShareToken = shareToken
+  } else {
+    console.warn(`\n  ! parent not seeded — child ${PARENT.linkedStudentEmail} not in DEMOS`)
+  }
+
   console.log('\n════════════════════════════════════════════════════════════════')
   console.log(' DEMO ACCOUNTS READY — sign in at /login')
   console.log('════════════════════════════════════════════════════════════════')
   for (const r of results) {
-    console.log(`  ${r.name}`)
+    console.log(`  ${r.name}  (student)`)
     console.log(`    email:    ${r.email}`)
     console.log(`    password: ${r.password}`)
     console.log(`    target:   ${r.target}`)
     console.log(`    user id:  ${r.id}`)
+    console.log('')
+  }
+  if (childId) {
+    console.log(`  ${PARENT.displayName}  (parent → ${PARENT.linkedStudentEmail})`)
+    console.log(`    email:    ${PARENT.email}`)
+    console.log(`    password: ${PARENT.password}`)
+    console.log(`    share:    /share/progress/${parentShareToken}`)
     console.log('')
   }
 }
