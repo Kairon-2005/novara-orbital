@@ -55,7 +55,7 @@ read-only Simplified-Chinese portal for parents.
 - **Calendar** — one master timeline; events from the AI, finance, and manual entry; reminders; `.ics` export.
 - **Portfolio** — achievements + XP and a dimension-based AI assessment of strengths/gaps vs. a target.
 - **Universities & Application Assistant** — per-target gap analysis and a structured application plan. **New:** build a plan from an official page by **link / paste / upload**, then push deadlines to the calendar (idempotent).
-- **Admission Case Library** *(community)* — **verified** admission outcomes (一亩三分地-style). Upload proof → AI cross-checks it → only matching cases earn a ✅ badge, feed the wiki, and count in positioning stats. Votes (顶/踩), saves, in-app notifications, optional pen names, WeChat sharing — anonymous by default.
+- **Admission Case Library** *(community)* — **verified** admission outcomes. Upload proof → AI cross-checks it → only matching cases earn a ✅ badge, feed the wiki, and count in positioning stats. Votes, saves, in-app notifications, optional pen names, WeChat sharing — anonymous by default.
 - **Knowledge Wiki** — curated, searchable NUS/NTU corpus (hybrid retrieval); the same source the AI cites.
 - **Admin Panel** — `role:admin` control room: moderation queue, verification override, KB + user-contribution review, directory CRUD, user/role management.
 - **Parent Portal** — read-only journey view + school-notice translate-and-reply, all in Simplified Chinese.

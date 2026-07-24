@@ -363,6 +363,7 @@ export default function PortfolioClient({
       .single()
     setAchievements(prev => [{ ...a, id: data?.id ?? a.id }, ...prev])
     setShowForm(false)
+    await handleAssess()
   }
 
   async function handleAssess() {
