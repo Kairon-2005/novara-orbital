@@ -31,8 +31,8 @@
 }
 
 body {
-  background: var(--bg);
-  color: var(--t900);
+  background: linear-gradient(135deg, #f5f3ff 0%, #F5F3FF 50%, #EDE9FE 100%);
+  background-attachment: fixed;  color: var(--t900);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -56,7 +56,7 @@ body {
 .sidebar {
   width: var(--sidebar-w);
   min-height: 100vh;
-  background: var(--white);
+  background: linear-gradient(180deg, #EEF2FF 0%, #F5F3FF 100%);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -78,6 +78,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background: transparent;
 }
 
 .topbar {
