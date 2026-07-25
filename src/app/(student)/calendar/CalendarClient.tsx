@@ -62,18 +62,22 @@ function daysUntil(dateStr: string, today: string) {
 
 // ── Add Event Modal ───────────────────────────────────────────────────────────
 
-function AddEventModal({ onAdd, onClose, existingEvents, defaultDate }: { 
+function AddEventModal({ onAdd, onClose, existingEvents, defaultDate, defaultTime }: { 
   onAdd: (e: CalEvent) => void | Promise<void>
   onClose: () => void
   existingEvents: CalEvent[]
   defaultDate: string
+  defaultTime: string
 }) {
   const [title,      setTitle]      = useState('')
   const [date, setDate] = useState(defaultDate)
   const [type,       setType]       = useState<EventType>('personal')
   const [notes,      setNotes]      = useState('')
-  const [startTime,  setStartTime]  = useState('09:00')
-  const [endTime,    setEndTime]    = useState('10:00')
+  const [startTime, setStartTime] = useState(defaultTime)
+  const [endTime, setEndTime] = useState(() => {
+    const h = parseInt(defaultTime.split(':')[0])
+    return `${String(Math.min(h + 1, 23)).padStart(2, '0')}:00`
+  })
   const [conflictWith, setConflictWith] = useState<CalEvent | null>(null)
 
   function submit(e: React.FormEvent) {
@@ -207,6 +211,7 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
   const [selectedDate, setSelectedDate] = useState(todayStr())
   const [editingEvent, setEditingEvent] = useState<CalEvent | null>(null)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const [modalTime, setModalTime] = useState<string>('09:00')
 
   const today = todayStr()
 
@@ -411,7 +416,7 @@ const dayHours = useMemo(() =>
                         })
                         return (
                           <div key={dateStr}
-                            onClick={() => setModalDate(dateStr)}
+                            onClick={() => { setModalDate(dateStr); setModalTime(hour) }}
                             className="min-h-[48px] border-r border-[var(--border)] last:border-r-0 p-[2px] cursor-pointer hover:bg-[var(--blue-50)] transition-colors">
                             {evs.map(ev => {
                               const s = EVENT_STYLE[ev.type]
@@ -453,7 +458,12 @@ const dayHours = useMemo(() =>
 
                     return (
                       <div key={i}
-                        onClick={() => cell.current && setModalDate(cell.dateStr)}
+                        onClick={() => { 
+                          if (cell.current) {
+                            console.log('clicked date:', cell.dateStr)
+                            setModalDate(cell.dateStr)
+                          }
+                        }}
                         className={[
                           'min-h-[78px] p-[7px_8px] rounded-[8px] flex flex-col gap-[3px] border transition-colors',
                           isToday ? 'border-[var(--blue)] bg-[var(--blue-50)]'
@@ -560,6 +570,7 @@ const dayHours = useMemo(() =>
 
       {modalDate && <AddEventModal
         defaultDate={modalDate}
+        defaultTime={modalTime}
         existingEvents={events}
         onAdd={async ev => {
           setEvents(p => [...p, ev])
