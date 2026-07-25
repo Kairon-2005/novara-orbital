@@ -62,9 +62,14 @@ function daysUntil(dateStr: string, today: string) {
 
 // ── Add Event Modal ───────────────────────────────────────────────────────────
 
-function AddEventModal({ onAdd, onClose, existingEvents }: { onAdd: (e: CalEvent) => void | Promise<void>; onClose: () => void; existingEvents: CalEvent[] }) {
+function AddEventModal({ onAdd, onClose, existingEvents, defaultDate }: { 
+  onAdd: (e: CalEvent) => void | Promise<void>
+  onClose: () => void
+  existingEvents: CalEvent[]
+  defaultDate: string
+}) {
   const [title,      setTitle]      = useState('')
-  const [date,       setDate]       = useState(todayStr())
+  const [date, setDate] = useState(defaultDate)
   const [type,       setType]       = useState<EventType>('personal')
   const [notes,      setNotes]      = useState('')
   const [startTime,  setStartTime]  = useState('09:00')
@@ -196,7 +201,7 @@ export default function CalendarClient({ initialEvents, userId }: CalendarClient
   const [viewYear,  setViewYear]  = useState(now.getFullYear())
   const [viewMonth, setViewMonth] = useState(now.getMonth())
   const [events, setEvents]       = useState<CalEvent[]>(initialEvents)
-  const [showModal, setShowModal] = useState(false)
+  const [modalDate, setModalDate] = useState<string | null>(null)
   const [filterType, setFilter]   = useState('All')
   const [calView, setCalView] = useState<'month' | 'week' | 'day'>('month')
   const [selectedDate, setSelectedDate] = useState(todayStr())
@@ -334,7 +339,7 @@ const dayHours = useMemo(() =>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export .ics
           </a>
-          <button onClick={() => setShowModal(true)}
+          <button onClick={() => setModalDate(today)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] font-semibold bg-[var(--blue)] text-white hover:bg-[var(--blue-h)]">
             + Add Event
           </button>
@@ -406,7 +411,7 @@ const dayHours = useMemo(() =>
                         })
                         return (
                           <div key={dateStr}
-                            onClick={() => setShowModal(true)}
+                            onClick={() => setModalDate(dateStr)}
                             className="min-h-[48px] border-r border-[var(--border)] last:border-r-0 p-[2px] cursor-pointer hover:bg-[var(--blue-50)] transition-colors">
                             {evs.map(ev => {
                               const s = EVENT_STYLE[ev.type]
@@ -448,7 +453,7 @@ const dayHours = useMemo(() =>
 
                     return (
                       <div key={i}
-                        onClick={() => cell.current && setShowModal(true)}
+                        onClick={() => cell.current && setModalDate(cell.dateStr)}
                         className={[
                           'min-h-[78px] p-[7px_8px] rounded-[8px] flex flex-col gap-[3px] border transition-colors',
                           isToday ? 'border-[var(--blue)] bg-[var(--blue-50)]'
@@ -553,7 +558,8 @@ const dayHours = useMemo(() =>
         </div>
       </div>
 
-      {showModal && <AddEventModal
+      {modalDate && <AddEventModal
+        defaultDate={modalDate}
         existingEvents={events}
         onAdd={async ev => {
           setEvents(p => [...p, ev])
@@ -571,7 +577,7 @@ const dayHours = useMemo(() =>
             end_time: ev.end_time ?? null,
           })
         }}
-        onClose={() => setShowModal(false)}
+        onClose={() => setModalDate(null)}
       />}
 
       {editingEvent && (
