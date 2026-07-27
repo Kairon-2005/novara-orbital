@@ -149,7 +149,7 @@ export type Database = {
       }
       roadmaps: {
         Row:    { id: string; student_id: string; status: 'active' | 'archived'; raw_json: unknown; generated_at: string }
-        Insert: { id?: string; student_id: string; status?: 'active' | 'archived'; raw_json: unknown }
+        Insert: { id?: string; student_id: string; status?: 'active' | 'archived'; raw_json: unknown; generated_at?: string }
         Update: { status?: 'active' | 'archived'; raw_json?: unknown }
         Relationships: []
       }
@@ -258,19 +258,25 @@ export type Database = {
           school_type: SchoolType; curriculum: SchoolCurriculum | null
           zone: string | null; address: string | null; description: string | null
           website: string | null; tuition_range: string | null; highlights: string[]
+          postal_code: string | null; latitude: number | null; longitude: number | null
+          mrt_desc: string | null; source: string
           is_active: boolean; created_at: string
         }
         Insert: {
           id?: string; school_name: string; slug: string
           school_type: SchoolType; curriculum?: SchoolCurriculum | null
           zone?: string | null; address?: string | null; description?: string | null
-          website?: string | null; is_active?: boolean
+          website?: string | null; tuition_range?: string | null; highlights?: string[]
+          postal_code?: string | null; latitude?: number | null; longitude?: number | null
+          mrt_desc?: string | null; source?: string; is_active?: boolean
         }
         Update: {
           school_name?: string; slug?: string; school_type?: SchoolType
           curriculum?: SchoolCurriculum | null; zone?: string | null
           address?: string | null; description?: string | null
-          website?: string | null; is_active?: boolean
+          website?: string | null; tuition_range?: string | null; highlights?: string[]
+          postal_code?: string | null; latitude?: number | null; longitude?: number | null
+          mrt_desc?: string | null; source?: string; is_active?: boolean
         }
         Relationships: []
       }

@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import { useLocale } from '@/components/shared/LocaleProvider'
-import { filterSchools, type DirectorySchool } from '@/lib/schools'
+import {
+  filterSchools, sortByDistance, formatDistance,
+  type DirectorySchool, type SchoolWithDistance, type Coords,
+} from '@/lib/schools'
 
 // ── Styling maps ──────────────────────────────────────────────────────────────
 
@@ -44,6 +47,14 @@ const T = {
     emptyDirDesc: 'School listings are curated by the Novara team — check back soon.',
     noMatchTitle: 'No schools match your filters',
     noMatchDesc: 'Try clearing a filter or broadening your search.',
+    nearMe: '📍 Sort by distance from me',
+    nearMeOn: '📍 Nearest first — tap to turn off',
+    locating: 'Finding you…',
+    locateDenied: 'Location unavailable. Allow location access to sort by distance.',
+    locateUnsupported: 'This browser does not support location.',
+    fromYou: 'from you',
+    nearestMrt: 'Nearest MRT',
+    openInMaps: 'Open in Maps →',
   },
   zh: {
     typeLabels: {
@@ -66,6 +77,14 @@ const T = {
     emptyDirDesc: '学校信息由 Novara 团队甄选上架，敬请期待。',
     noMatchTitle: '没有符合筛选条件的学校',
     noMatchDesc: '试试取消一个筛选条件，或放宽搜索。',
+    nearMe: '📍 按距离排序',
+    nearMeOn: '📍 已按最近排序 — 点击关闭',
+    locating: '正在定位…',
+    locateDenied: '无法获取位置。请允许定位权限后按距离排序。',
+    locateUnsupported: '当前浏览器不支持定位。',
+    fromYou: '距你',
+    nearestMrt: '最近地铁站',
+    openInMaps: '在地图中打开 →',
   },
 }
 
@@ -81,11 +100,17 @@ const TYPE_GRADIENT: Record<string, string> = {
 
 // ── School card ───────────────────────────────────────────────────────────────
 
-function SchoolCard({ school }: { school: DirectorySchool }) {
+function SchoolCard({ school }: { school: SchoolWithDistance }) {
   const [open, setOpen] = useState(false)
   const locale = useLocale()
   const t = T[locale]
   const currStyle = school.curriculum ? CURRICULUM_STYLE[school.curriculum] : null
+
+  // Deep-link to whichever map app the device prefers, using the coordinates we
+  // geocoded rather than a name search that could land on the wrong campus.
+  const mapsHref = school.latitude != null && school.longitude != null
+    ? `https://www.google.com/maps/search/?api=1&query=${school.latitude},${school.longitude}`
+    : null
 
   return (
     <div className="bg-white border border-[var(--border)] rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.05)] flex flex-col transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.09)] hover:border-[var(--blue-100)]">
@@ -111,7 +136,14 @@ function SchoolCard({ school }: { school: DirectorySchool }) {
           {school.school_name}
         </div>
 
-        {school.zone && <div className="text-[11px] text-[var(--t500)] mb-2.5">📍 {school.zone}</div>}
+        <div className="flex items-center gap-2 flex-wrap mb-2.5">
+          {school.zone && <span className="text-[11px] text-[var(--t500)]">📍 {school.zone}</span>}
+          {school.distanceKm != null && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--blue-50)] text-[var(--blue)]">
+              {formatDistance(school.distanceKm)} {t.fromYou}
+            </span>
+          )}
+        </div>
 
         {school.tuition_range && (
           <>
@@ -128,6 +160,15 @@ function SchoolCard({ school }: { school: DirectorySchool }) {
               <p className="text-[12px] text-[var(--t500)] leading-relaxed mb-2">{school.description}</p>
             )}
             {school.address && <p className="text-[11px] text-[var(--t300)] mb-2">🗺 {school.address}</p>}
+            {school.mrt_desc && (
+              <p className="text-[11px] text-[var(--t300)] mb-2">🚇 {t.nearestMrt}: {school.mrt_desc}</p>
+            )}
+            {mapsHref && (
+              <a href={mapsHref} target="_blank" rel="noopener noreferrer"
+                className="inline-block text-[11px] text-[var(--blue)] font-medium hover:underline mb-2">
+                {t.openInMaps}
+              </a>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {school.highlights.map(h => (
                 <span key={h} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--bg)] text-[var(--t700)]">
@@ -189,10 +230,38 @@ export default function NavigatorClient({ schools }: { schools: DirectorySchool[
   )
   const [zone, setZone] = useState('')
 
-  const filtered = useMemo(
-    () => filterSchools(schools, { query, type, curriculum, zone }),
-    [schools, query, type, curriculum, zone],
-  )
+  // ── "Near me" ────────────────────────────────────────────────
+  // The browser's Geolocation API is the GPS source; the schools' coordinates
+  // come from the OneMap-geocoded directory, so the distance maths is local and
+  // no position ever leaves the device.
+  const [origin, setOrigin]     = useState<Coords | null>(null)
+  const [locating, setLocating] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
+
+  const anyGeocoded = useMemo(() => schools.some(s => s.latitude != null), [schools])
+
+  function toggleNearMe() {
+    if (origin) { setOrigin(null); setGeoError(null); return }
+    if (!('geolocation' in navigator)) { setGeoError(t.locateUnsupported); return }
+
+    setLocating(true)
+    setGeoError(null)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setLocating(false)
+      },
+      () => { setGeoError(t.locateDenied); setLocating(false) },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
+    )
+  }
+
+  const filtered: SchoolWithDistance[] = useMemo(() => {
+    const matched = filterSchools(schools, { query, type, curriculum, zone })
+    return origin
+      ? sortByDistance(matched, origin)
+      : matched.map(s => ({ ...s, distanceKm: null }))
+  }, [schools, query, type, curriculum, zone, origin])
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -236,6 +305,15 @@ export default function NavigatorClient({ schools }: { schools: DirectorySchool[
               {zones.map(z => (
                 <Pill key={z} active={zone === z} onClick={() => setZone(zone === z ? '' : z)}>{z}</Pill>
               ))}
+            </div>
+          )}
+
+          {anyGeocoded && (
+            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-[var(--border)]">
+              <Pill active={Boolean(origin)} onClick={toggleNearMe}>
+                {locating ? t.locating : origin ? t.nearMeOn : t.nearMe}
+              </Pill>
+              {geoError && <span className="text-[11px] text-[var(--red)]">{geoError}</span>}
             </div>
           )}
         </div>

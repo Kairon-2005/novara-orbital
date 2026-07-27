@@ -10,7 +10,8 @@
     "test": "vitest",
     "kb:ingest": "tsx scripts/kb-ingest.ts",
     "kb:stale": "tsx scripts/kb-stale.ts",
-    "kb:refresh": "tsx scripts/kb-refresh.ts"
+    "kb:refresh": "tsx scripts/kb-refresh.ts",
+    "schools:ingest": "tsx scripts/ingest-schools.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",
