@@ -658,6 +658,17 @@ const PARENT = {
   linkedStudentEmail: 'demo.cs@novara.vip', // Li Wei
 }
 
+// Admin account for /admin (moderation · verification · KB · directory · users).
+// Previously this account existed only because someone had signed up manually —
+// admin-upgrade.sql merely PROMOTES an existing auth user — so a db reset (or a
+// forgotten password) locked the panel with nothing to restore it. Seeding it
+// here makes the admin credential as reproducible as the student ones.
+const ADMIN = {
+  email: 'kaironu@demo.com',
+  password: 'kaironu1234',
+  displayName: 'kaironu',
+}
+
 // ── seeding engine ─────────────────────────────────────────────────────────────
 async function findUserByEmail(admin: SupabaseClient, email: string): Promise<string | null> {
   for (let page = 1; page <= 20; page++) {
@@ -904,6 +915,47 @@ async function seedParent(admin: SupabaseClient, p: typeof PARENT, studentId: st
   return { userId, shareToken: token }
 }
 
+async function seedAdmin(admin: SupabaseClient, a: typeof ADMIN) {
+  console.log(`\n── ${a.displayName}  <${a.email}>  (admin) ───────────────────────`)
+
+  let userId = await findUserByEmail(admin, a.email)
+  if (userId) {
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      password: a.password, email_confirm: true,
+      user_metadata: { role: 'admin', display_name: a.displayName },
+    })
+    if (error) throw new Error(`updateUser: ${error.message}`)
+    console.log(`  • auth user exists → password reset (${userId})`)
+  } else {
+    const { data, error } = await admin.auth.admin.createUser({
+      email: a.email, password: a.password, email_confirm: true,
+      user_metadata: { role: 'admin', display_name: a.displayName },
+    })
+    if (error) throw new Error(`createUser: ${error.message}`)
+    userId = data.user!.id
+    console.log(`  • auth user created (${userId})`)
+    await new Promise((r) => setTimeout(r, 400))
+  }
+
+  // The service role bypasses RLS, but `guard_profile_role` is a BEFORE-UPDATE
+  // trigger that reverts role changes for non-service callers. We are the
+  // service role here, so this write sticks — verified below rather than assumed.
+  await upsertSingle(admin, 'profiles', 'id', userId, {
+    role: 'admin', display_name: a.displayName, preferred_language: 'en',
+  })
+
+  const { data: check } = await admin.from('profiles').select('role').eq('id', userId).maybeSingle()
+  if (check?.role !== 'admin') {
+    throw new Error(
+      `profile role is "${check?.role}" not "admin" — run supabase/admin-upgrade.sql once ` +
+      `(it allows the admin role and promotes this account), then re-run this script.`,
+    )
+  }
+  console.log('  • profile role: admin ✓')
+
+  return userId
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────
 async function main() {
   loadEnvLocal()
@@ -937,6 +989,15 @@ async function main() {
     console.warn(`\n  ! parent not seeded — child ${PARENT.linkedStudentEmail} not in DEMOS`)
   }
 
+  // Admin. Non-fatal: the student/parent seed is still useful without /admin.
+  let adminSeeded = false
+  try {
+    await seedAdmin(admin, ADMIN)
+    adminSeeded = true
+  } catch (err) {
+    console.warn(`\n  ! admin not seeded — ${err instanceof Error ? err.message : err}`)
+  }
+
   console.log('\n════════════════════════════════════════════════════════════════')
   console.log(' DEMO ACCOUNTS READY — sign in at /login')
   console.log('════════════════════════════════════════════════════════════════')
@@ -953,6 +1014,12 @@ async function main() {
     console.log(`    email:    ${PARENT.email}`)
     console.log(`    password: ${PARENT.password}`)
     console.log(`    share:    /share/progress/${parentShareToken}`)
+    console.log('')
+  }
+  if (adminSeeded) {
+    console.log(`  ${ADMIN.displayName}  (admin → /admin)`)
+    console.log(`    email:    ${ADMIN.email}`)
+    console.log(`    password: ${ADMIN.password}`)
     console.log('')
   }
 }
