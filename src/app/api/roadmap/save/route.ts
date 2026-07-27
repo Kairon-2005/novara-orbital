@@ -4,18 +4,14 @@
 // Calendar events are NOT created here — calendar is managed manually by the user.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteClient } from '@/db/server'
-import { createClient } from '@supabase/supabase-js'
+import { createRouteClient, createAdminClient } from '@/db/server'
 import type { GeneratedRoadmap } from '@/types/roadmap'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } }
-)
 
 export async function POST(req: NextRequest) {
   const supabase = createRouteClient()
+  // Typed admin client — the previously hand-rolled untyped createClient() let a
+  // missing `raw_json` (NOT NULL) slip past the compiler and fail at runtime.
+  const supabaseAdmin = createAdminClient()
 
   // ── Auth ──────────────────────────────────────────────────────
   const { data: { user } } = await supabase.auth.getUser()
@@ -46,6 +42,9 @@ export async function POST(req: NextRequest) {
     .insert({
       student_id:   user.id,
       status:       'active',
+      // roadmaps.raw_json is NOT NULL — keep the full generated plan so the
+      // preview can be re-rendered later without another AI call.
+      raw_json:     roadmap,
       generated_at: new Date().toISOString(),
     })
     .select('id')

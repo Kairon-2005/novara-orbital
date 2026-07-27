@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/db/client'
 import { useToast } from '@/components/ui/toast'
@@ -565,6 +565,17 @@ export default function RoadmapClient({
   const locale   = useLocale()
   const t        = T[locale]
   const [milestones, setMilestones] = useState<MockMilestone[]>(initialMilestones)
+
+  // The DB is the source of truth. Adopting a roadmap calls router.refresh(),
+  // which re-renders the server component with fresh props — but useState keeps
+  // its mount-time value, so without this sync the newly-saved milestones never
+  // appeared. Keyed on a content signature so an identical refresh is a no-op
+  // and can't clobber an in-flight optimistic toggle.
+  const serverSig = initialMilestones.map(m => `${m.id}:${m.completed ? 1 : 0}`).join(',')
+  useEffect(() => {
+    setMilestones(initialMilestones)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverSig])
 
   // ── AI generate state ─────────────────────────────────────────
   const [showAiModal, setShowAiModal]   = useState(false)
