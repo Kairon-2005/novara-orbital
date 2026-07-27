@@ -65,6 +65,19 @@ export function qdrantConfigured(): boolean {
   return Boolean(process.env.QDRANT_URL && process.env.QDRANT_API_KEY)
 }
 
+/** True when the store is configured but the cluster itself isn't answering —
+ *  Qdrant Cloud suspends free clusters after a period of inactivity, and a
+ *  suspended cluster's hostname still resolves but every path 404s. Callers use
+ *  this to say "temporarily unavailable" instead of leaking a raw HTTP error. */
+export function isClusterUnreachable(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return (
+    /failed \(404\)/.test(msg) ||          // suspended cluster / deleted deployment
+    /failed \(50\d\)/.test(msg) ||         // cluster restarting
+    /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed/i.test(msg)
+  )
+}
+
 export class QdrantStore implements VectorStore {
   constructor(
     private baseUrl = process.env.QDRANT_URL ?? '',

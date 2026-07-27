@@ -87,6 +87,7 @@ const GROUP_ORDER = ['NUS', 'NTU', 'Singapore pathways', 'General guides', 'Comm
 export default function WikiClient() {
   const [docs, setDocs] = useState<DocSummary[]>([])
   const [configured, setConfigured] = useState(true)
+  const [unavailable, setUnavailable] = useState(false)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
@@ -99,6 +100,9 @@ export default function WikiClient() {
     fetch('/api/kb/docs')
       .then(async (r) => {
         const data = await r.json().catch(() => ({}))
+        // The vector store is reachable-but-down (suspended cluster): a distinct
+        // state from "not set up" and from a genuine error.
+        if (data.unavailable) { setUnavailable(true); return }
         if (!r.ok) throw new Error(data.error ?? `Request failed (${r.status})`)
         setConfigured(data.configured !== false)
         setDocs(data.docs ?? [])
@@ -221,6 +225,15 @@ export default function WikiClient() {
       </form>
 
       {error && <p className="text-[13px] text-red-500 mb-4">{error}</p>}
+      {unavailable && !loading && (
+        <div className="card p-5 text-[13px] text-[var(--t500)]">
+          <div className="font-semibold text-[var(--t900)] mb-1">
+            The knowledge base is temporarily unavailable
+          </div>
+          Its search index is offline right now. Everything else in Novara works as
+          normal — please try the wiki again shortly.
+        </div>
+      )}
       {!configured && !loading && (
         <div className="card p-5 text-[13px] text-[var(--t500)]">
           The knowledge base hasn&apos;t been set up yet. Please check back later.
