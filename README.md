@@ -6,7 +6,7 @@ Proposed Level of Achievement: Apollo 11
 
 Programme: NUS Orbital 2026
 
-Live URL: [https://novara-flax.vercel.app/](https://novara-flax.vercel.app/)
+Live URL: [novara.vip](www.novara.vip),  [https://novara-flax.vercel.app/](https://novara-flax.vercel.app/)
 
 GitHub: [github.com/Kairon-2005/novara-orbital](https://github.com/Kairon-2005/novara-orbital)
 
@@ -18,7 +18,7 @@ GitHub: [github.com/Kairon-2005/novara-orbital](https://github.com/Kairon-2005/n
 | --- | --- | --- | --- |
 | **Student** | `demo.cs@novara.vip` | `NovaraDemo2026` | Li Wei — IB → NUS Computer Science |
 | **Student** | `demo.biz@novara.vip` | `NovaraDemo2026` | Chen Yixin — A-Level → NUS Business (BBA) |
-| **Parent** | `demo.parent@novara.vip` | `NovaraDemo2026` | Li Ming — linked to Li Wei, interface in Chinese |
+| **Parent** | `demo.parent@novara.vip` | `NovaraDemo2026` | Li Ming — linked to Li Wei |
 | **Admin** | `kaironu@demo.com` | `kaironu1234` | `/admin` — moderation · verification · KB · directory · users |
 
 Both students are seeded with a full journey: AI roadmap, calendar, portfolio assessment,
@@ -202,14 +202,13 @@ views, event editing, start/end times, conflict detection, reminders, `.ics` exp
 Documents (AI extraction and classification, per-document parent sharing); Parent Support &
 Translation Tools (PDF upload + OCR); Portfolio & Achievement Tracker (five-dimension AI
 assessment); University Application Assistant (link/paste/upload → plan → calendar push);
-选校定位 Positioning Verdicts; 申请就绪检查 Submission Readiness Check; 文书工作室 Essay Studio
-(feedback-only critique); 项目对比 Programme Comparison Dashboard (official statistics with
+Positioning Verdicts (选校定位); Submission Readiness Check (申请就绪检查); Essay Studio (文书工作室)
+(feedback-only critique); Programme Comparison Dashboard (项目对比, official statistics with
 per-figure provenance); Verified Admission Case Library (AI verification, votes, saves,
-notifications, pen names, WeChat sharing); 可信度分级 Tiered Trust Badges; Proof Forensics
-(hash-based duplicate detection, PDF metadata heuristics); 学校邮箱验证 School-Email
-Verification; Knowledge Wiki (Qdrant hybrid retrieval); Admin Panel (moderation, verification
+notifications, pen names, WeChat sharing); Tiered Trust Badges (可信度分级); Proof Forensics
+(hash-based duplicate detection, PDF metadata heuristics); School-Email Verification (学校邮箱验证); Knowledge Wiki (Qdrant hybrid retrieval); Admin Panel (moderation, verification
 override, human review marking, KB management, directory CRUD, user/role management); Parent
-Dashboard; 分享申请进度 Progress Sharing (tokenised, expiring, revocable public card);
+Dashboard; Progress Sharing (分享申请进度; tokenised, expiring, revocable public card);
 full bilingual interface with per-role default language and live switching; AI cost guard
 (per-user per-feature daily caps with retry).
 
@@ -235,6 +234,26 @@ directory is backed by a real database table curated through the admin panel, so
 maintained as data rather than hardcoded, and the filtering logic is a pure, unit-tested
 function.
 
+The directory is populated from official sources rather than by hand:
+
+```bash
+npm run schools:ingest
+```
+
+pulls MOE's *General information of schools* dataset from data.gov.sg (every primary,
+secondary, junior college and centralised institute) and merges it with a curated list of the
+autonomous universities, polytechnics, ITE colleges, and major international schools that the
+MOE feed does not cover — around 370 institutions in total. Each is geocoded through
+[OneMap](https://www.onemap.gov.sg), Singapore's national mapping API, and coordinates are
+cached on disk so re-ingests are near-instant. Rows are upserted on `slug`, so the command is
+idempotent and safe to re-run when MOE refreshes the dataset.
+
+Those coordinates power **Sort by distance from me**: the browser's Geolocation API supplies
+the student's position, and the great-circle distance to each school is computed in the
+client, so a location never leaves the device. Cards show the distance, the nearest MRT
+station from the MOE feed, and a map deep-link built from the geocoded coordinates rather
+than a name search that could land on the wrong campus.
+
 ![School Navigator](public/screenshots/navigator.png)
 
 ## **Feature 2 — AI Academic Roadmap Planner**
@@ -255,6 +274,10 @@ is consumed **only after a generation succeeds**, so a transient AI timeout or a
 response never costs the student an allowance.
 
 ![AI Roadmap](public/screenshots/roadmap.png)
+
+*The preview modal — milestones are reviewed and only persisted on Adopt, so regeneration has no side effects:*
+
+![Roadmap preview and adopt](public/screenshots/generate-roadmap.png)
 
 ## **Feature 3 — Smart Calendar & Deadline Tracker**
 
@@ -317,10 +340,10 @@ idempotently — syncing twice never creates duplicates.
 
 ![Application plan](public/screenshots/universities-plan.png)
 
-## **Feature 7 — 选校定位 Positioning Verdicts**
+## **Feature 7 — Positioning Verdicts (选校定位)**
 
-Each target university carries a verdict — **冲刺 (Reach)**, **匹配 (Match)**, or
-**稳妥 (Safety)** — replacing the "以你的条件…" judgement a 中介 sells. The verdict is computed
+Each target university carries a verdict — **Reach** (冲刺), **Match** (匹配), or
+**Safety** (稳妥) — replacing the "based on your profile…" judgement an agency sells. The verdict is computed
 from two signals Novara actually holds: verified admission outcomes at that institution from
 the case library, and the student's own five-dimension portfolio assessment.
 
@@ -330,9 +353,11 @@ guessing. It will **never** label a target "safety" on the strength of a self-as
 alone — that claim requires real outcome evidence. Each verdict displays the evidence behind
 it: the number of verified cases, the offer rate, and comparable admitted backgrounds.
 
-> *Screenshot pending — see [Screenshots](#screenshots).*
+![Positioning verdict and readiness check](public/screenshots/positioning-readiness.png)
 
-## **Feature 8 — 申请就绪检查 Submission Readiness Check**
+*Both targets read Match on assessment alone, and the panel says so explicitly — "该结论仅基于你的档案评估（案例数据不足）" — rather than implying the verdict is backed by outcome data it does not have.*
+
+## **Feature 8 — Submission Readiness Check (申请就绪检查)**
 
 The safety net an agency provides on submission day, rendered as a per-target audit. The check
 cross-references the application plan against what the student has actually done: every
@@ -345,9 +370,11 @@ Missing items block readiness; warnings inform without blocking. The result is a
 verdict — "✅ 可以提交" or an explicit list of what remains. The entire check is a pure
 function with no AI involvement, so it is deterministic, instant, and free.
 
-> *Screenshot pending — see [Screenshots](#screenshots).*
+The readiness panel is visible in the screenshot above: ✅ marks a requirement satisfied,
+⚠️ a warning (checked off but no matching upload, or a deadline missing from the calendar),
+and ❌ a blocker.
 
-## **Feature 9 — 文书工作室 Essay Studio**
+## **Feature 9 — Essay Studio (文书工作室)**
 
 The single largest expense at a study-abroad agency is essay help, and it is also where
 outsourcing does the most damage: universities increasingly detect ghostwritten and
@@ -366,9 +393,21 @@ prose-length bullets. That rule is asserted by a unit test, so it cannot regress
 Every round of feedback is stored with a snapshot of the draft it critiqued, so improvement
 over time is visible.
 
-> *Screenshot pending — see [Screenshots](#screenshots).*
+![Essay Studio — new draft linked to a target](public/screenshots/essays-1.png)
 
-## **Feature 10 — 项目对比 Programme Comparison Dashboard**
+*A draft can be linked to a specific application target, so critique is written against that
+programme's expectations.*
+
+![Essay Studio — draft in progress](public/screenshots/essay-2.png)
+
+![Essay Studio — AI critique](public/screenshots/essay-3.png)
+
+*A full critique round. Note the Evidence Alignment section: the AI cross-references the draft
+against the student's actual records — the Computing Club leadership, Code for Community
+tutoring, and NOI/AMC results — and names what the essay omitted. No sentence of the essay is
+written or rewritten for the student.*
+
+## **Feature 10 — Programme Comparison Dashboard (项目对比)**
 
 Choosing *which* university–programme pair to target is a decision students routinely make on
 reputation alone. This dashboard replaces reputation with **official statistics only**.
@@ -377,12 +416,12 @@ For each pair it presents the QS World University Ranking, the QS subject rankin
 Higher Education ranking, the median gross monthly starting salary and employment rate from
 the Ministry of Education Graduate Employment Survey, and direct links to the official
 curriculum page and indicative grade profile. The table sorts by salary, employment rate,
-subject rank, or university rank, and a single click turns any row into a tracked application
+subject rank, or university rank, and a single click (设为目标) turns any row into a tracked application
 target.
 
 The provenance rule is absolute: **every figure carries a numbered footnote linking to its
 source, with the edition year, and no number is ever AI-generated.** Where a statistic could
-not be verified from an official source it is stored as null and rendered as 暂无数据 rather
+not be verified from an official source it is stored as null and rendered as “no data” (暂无数据) rather
 than estimated — two such gaps are visible in the current dataset. A methodology note explains
 the GES employment definition so the numbers cannot be innocently misread.
 
@@ -400,38 +439,44 @@ the knowledge base, and count toward positioning statistics.
 The library is structured and queryable rather than a chronological feed: students filter by
 institution, programme, curriculum route, result, level, and year, and see aggregate
 positioning statistics — offer rate and comparable admitted backgrounds — computed over the
-verified subset only. Social features include 顶/踩 voting, 收藏 bookmarking, in-app
+verified subset only. Social features include upvote/downvote (顶/踩) voting, bookmarking (收藏), in-app
 notifications, comments, and optional pen names. Cases are anonymous by default, and verified
 cases can be shared to WeChat as an anonymised page with a QR code.
 
 ![Admission Case Library](public/screenshots/community.png)
 
-## **Feature 12 — 可信度分级 Tiered Trust & Proof Forensics**
+*Submitting a case: proof is uploaded for auto-fill and private cross-checking, and reports are anonymous by default.*
+
+![Submitting an admission case](public/screenshots/comm-share-results.png)
+
+## **Feature 12 — Tiered Trust & Proof Forensics (可信度分级)**
 
 A single "verified" badge cannot express *how* a case was verified, so trust is displayed as a
 tier:
 
 | Tier | Meaning |
 | --- | --- |
-| 🛡 **人工复核** | AI-verified **and** confirmed by a human reviewer in the admin panel |
-| 🎓 **邮箱验证** | AI-verified **and** the author proved control of a mailbox at that same university |
-| ✅ **已验证** | The uploaded evidence corroborates the claim (AI cross-check) |
-| 未验证 / ⚠️ 信息不一致 | No corroborating evidence, or evidence that contradicts the claim |
+| 🛡 **Human-reviewed** (人工复核) | AI-verified **and** confirmed by a human reviewer in the admin panel |
+| 🎓 **Email-verified** (邮箱验证) | AI-verified **and** the author proved control of a mailbox at that same university |
+| ✅ **Verified** (已验证) | The uploaded evidence corroborates the claim (AI cross-check) |
+| Unverified (未验证) / ⚠️ Mismatch (信息不一致) | No corroborating evidence, or evidence that contradicts the claim |
 
 Two mechanisms raise the cost of faking. **Proof forensics:** every uploaded file is
 SHA-256 fingerprinted, so the same document backing a *different* author's case forces the
-案例 to 信息不一致 — the recycled-offer-letter scam fails. PDF metadata heuristics flag
+case to mismatch (信息不一致) — the recycled-offer-letter scam fails. PDF metadata heuristics flag
 image-editor producers (Photoshop, Canva) and creation dates outside the admission cycle, and
 route those submissions to human review. Critically, forensics can only *lower* trust, never
 raise it, and absent metadata is never treated as suspicious.
 
-**学校邮箱验证 School-email verification:** a document can be forged; control of a university
+**School-email verification (学校邮箱验证):** a document can be forged; control of a university
 mailbox cannot. Students verify a student address at NUS, NTU, SMU, SUTD, SIT, or SUSS with a
-one-time six-digit code, which upgrades their cases at that institution to the 邮箱验证 tier.
+one-time six-digit code, which upgrades their cases at that institution to the email-verified (邮箱验证) tier.
 The flow is rate-limited (three sends per day, five attempts, fifteen-minute expiry) and codes
 are hashed bound to the user account.
 
-> *Screenshot pending — see [Screenshots](#screenshots).*
+![Trust tiers in the case library](public/screenshots/trust-tiers.png)
+
+![School-email verification](public/screenshots/school-email.png)
 
 ## **Feature 13 — Knowledge Wiki**
 
@@ -492,7 +537,7 @@ the database level rather than in the UI.
 
 ![Parent Finance](public/screenshots/parent-finance.png)
 
-## **Feature 17 — 分享申请进度 Progress Sharing**
+## **Feature 17 — Progress Sharing (分享申请进度)**
 
 Extended family in China ask how the child is doing, and the parent's only options are
 screenshots or nothing. This feature gives them a proper answer: the parent generates a
@@ -506,7 +551,7 @@ documents, finances, or communications — a restriction asserted by a unit test
 projection. Links expire after seven days, can be revoked at any time, and the page is marked
 `noindex`.
 
-> *Screenshot pending — see [Screenshots](#screenshots).*
+![Progress sharing](public/screenshots/progress-share.png)
 
 ## **Feature 18 — Bilingual Interface**
 
@@ -519,13 +564,19 @@ Chinese-speaking relative can flip instantly.
 Copy lives in a per-page dictionary next to the markup that renders it, so a page and its
 translations are always modified together.
 
+![Interface in English](public/screenshots/language-toggle-en.png)
+
+![The same page in Simplified Chinese](public/screenshots/language-toggle-zh.png)
+
+*The same surface in both languages — switched from the account menu, persisted per user.*
+
 ## **Feature 19 — Admin Panel**
 
 A `role:admin` control room for the curation and moderation the platform's trust model
 depends on:
 
 * **Moderation queue:** review reported community content and approve, flag, or remove it.
-* **Verification oversight:** inspect the AI's verdict alongside the claim and the extracted evidence, override it, and mark a case 人工复核 to grant the top trust tier.
+* **Verification oversight:** inspect the AI's verdict alongside the claim and the extracted evidence, override it, and mark a case human-reviewed (人工复核) to grant the top trust tier.
 * **Knowledge base:** ingest and refresh corpus documents, and review user-contributed pages before they are shared.
 * **Directory:** CRUD for the school directory that powers the Navigator.
 * **Users:** user and role management, including promoting an admin.
@@ -542,40 +593,23 @@ reset from the browser.
 
 ### Screenshots
 
-The images in this document live in `public/screenshots/`. **The existing set was captured on
-29 June 2026 and therefore predates the final milestone** — the pillar-grouped sidebar, the
-rebuilt Navigator, the bilingual interface, and the blue-purple gradient theme all landed
-afterwards. They illustrate the right features but not the current appearance, and should be
-recaptured before submission.
+All images in this document live in `public/screenshots/` and are captured against the seeded
+demo accounts listed at the top of this README.
 
-Capture each at desktop width, signed in as the account listed, and save into
-`public/screenshots/` under the given filename.
-
-**Recapture (currently stale):**
-
-| File | What to capture | Signed in as |
-| --- | --- | --- |
-| `dashboard.png` | Student dashboard — journey card, real assessment dimensions, grouped sidebar | `demo.cs@novara.vip` |
-| `navigator.png` | The rebuilt School Navigator with level / curriculum / zone filters | `demo.cs@novara.vip` → Navigator |
-| `roadmap.png` | Roadmap timeline with milestones | `demo.cs@novara.vip` → Roadmap |
-| `universities.png` | Target list — now including verdict and 材料就绪 chips | `demo.cs@novara.vip` → Universities |
-| `universities-plan.png` | An expanded target with its application plan and document checklist | `demo.cs@novara.vip` → Universities |
-| `calendar.png` | Calendar — ideally the new week or day view | `demo.cs@novara.vip` → Calendar |
-| `portfolio.png` · `documents.png` · `finance.png` · `community.png` · `wiki.png` | As before, in the current theme | `demo.cs@novara.vip` |
-| `parent-dashboard.png` · `parent-roadmap.png` · `parent-universities.png` · `parent-finance.png` · `parent-comms.png` | Parent portal in Chinese, current theme | `demo.parent@novara.vip` |
-
-**New — not yet illustrated:**
+Two screens are described but not yet illustrated. To add them, capture at desktop width,
+signed in as the account listed, and save under the given filename — the placeholders will
+resolve automatically:
 
 | File to add | What to capture | Signed in as |
 | --- | --- | --- |
-| `positioning-readiness.png` | A target card expanded, showing the 选校定位 verdict and the 申请就绪检查 panel | `demo.cs@novara.vip` → Universities |
-| `essays.png` | Essay Studio with a draft open and one round of AI critique visible | `demo.cs@novara.vip` → Essays |
-| `compare.png` | The 项目对比 tab — statistics table with source footnotes | `demo.cs@novara.vip` → Universities → 项目对比 |
-| `trust-tiers.png` | The 案例库 list showing at least two different trust badges | `demo.cs@novara.vip` → Community → 案例库 |
-| `school-email.png` | The 学校邮箱验证 page | `demo.cs@novara.vip` → account menu → School email |
-| `progress-share.png` | The 分享进度 modal with QR code, or the public card at `/share/progress/<token>` | `demo.parent@novara.vip` → Dashboard |
-| `admin-verification.png` | The verification queue showing the 标记人工复核 action | `kaironu@demo.com` → `/admin/verification` |
-| `language-toggle.png` | The account-menu EN / 中文 switch (optional, illustrates §15) | either student |
+| `compare.png` | The comparison tab (项目对比) — the statistics table with its numbered source footnotes | `demo.cs@novara.vip` → Universities → Compare |
+| `admin-verification.png` | The verification queue showing the “mark as human-reviewed” (标记人工复核) action | `kaironu@demo.com` → `/admin/verification` |
+
+A further note on currency: the screenshots for the dashboard, navigator, roadmap timeline,
+universities list, calendar, portfolio, documents, finance, community, wiki, and the five
+parent-portal pages were captured before the final visual theme landed. They show the correct
+features and layout, but not the current blue-purple gradient styling; the newer screenshots
+throughout §5 reflect the shipped appearance.
 
 ---
 
@@ -750,7 +784,7 @@ regress silently:
 
 * **Least privilege:** Row-Level Security scopes every row to its owner. Verification, staff-review, and AI-usage columns are writable only by the service role, enforced by database triggers — so a client cannot grant itself trust or reset its own quota.
 
-* **Honest-by-default UI:** When a signal is absent the interface says so — 未评估, 暂无数据, *insufficient data* — instead of synthesising a plausible number. This principle produced real deletions: two dashboards previously displayed dimension bars derived arithmetically from an unrelated score, and those were removed rather than kept as decoration.
+* **Honest-by-default UI:** When a signal is absent the interface says so —  *insufficient data* — instead of synthesising a plausible number. This principle produced real deletions: two dashboards previously displayed dimension bars derived arithmetically from an unrelated score, and those were removed rather than kept as decoration.
 
 ---
 
@@ -917,7 +951,7 @@ numbers. Duplicated truth is treated as a bug.
 ## **8. Honesty Over Polish**
 
 Where the system does not know something, it says so. An unverified application plan is
-labelled unverified. A statistic without a source renders 暂无数据. A target with insufficient
+labelled unverified. A statistic without a source renders “no data” (暂无数据). A target with insufficient
 case data returns *insufficient data* rather than a confident verdict. An essay gets critique,
 never ghostwriting. A trust badge states its basis rather than implying a guarantee. This is
 also why several features were **deleted** during the final milestone: two directory pages
@@ -1106,7 +1140,7 @@ sometimes wrong numbers — precisely the failure mode that makes students distr
 
 We chose a curated table of official statistics with per-field provenance stored alongside
 each value: source name, URL, and edition year. Where a figure could not be verified it stays
-null and renders 暂无数据. Two such gaps exist in the current dataset and are shown as gaps
+null and renders “no data” (暂无数据). Two such gaps exist in the current dataset and are shown as gaps
 rather than filled by estimation.
 
 ---
@@ -1281,8 +1315,8 @@ switch now demonstrably works in both directions.
 
 Locale-aware formatting follows the same resolution: dates render through `zh-CN` or `en-SG`
 as appropriate. Parent surfaces use a dedicated Noto Sans SC font stack via the `font-cn`
-design token. Domain terms that the Chinese-speaking community uses natively — 案例库, 收藏,
-顶/踩, 已验证 — are kept in Chinese in both locales rather than translated into unfamiliar
+design token. Domain terms that the Chinese-speaking community uses natively — case library (案例库), bookmark (收藏),
+upvote/downvote (顶/踩), verified (已验证) — are kept in Chinese in both locales rather than translated into unfamiliar
 English equivalents.
 
 The school-notice translation feature uses Qwen's bilingual capability to produce a full
@@ -1312,7 +1346,7 @@ src/
     admin/            moderation, verification, kb, directory, users
     api/              Route Handlers, organised by resource and action
   lib/
-    progress.ts          the 申请进度 snapshot every progress surface renders from
+    progress.ts          the application-progress (申请进度) snapshot every progress surface renders from
     positioning.ts       reach / match / safety verdicts
     readiness-check.ts   pre-submission audit
     essay-critique.ts    feedback-only essay critique
