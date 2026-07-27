@@ -581,8 +581,6 @@ depends on:
 * **Directory:** CRUD for the school directory that powers the Navigator.
 * **Users:** user and role management, including promoting an admin.
 
-> *Screenshot pending — see [Screenshots](#screenshots).*
-
 ## **Feature 20 — AI Cost Guard**
 
 Every AI-backed feature runs behind a guard that enforces a per-user, per-feature daily cap,
