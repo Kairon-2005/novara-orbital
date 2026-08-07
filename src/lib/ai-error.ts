@@ -9,18 +9,57 @@
 
 export type AiFailure = {
   /** Stable slug for logs and metrics. */
-  category: 'auth' | 'balance' | 'rate_limit' | 'timeout' | 'empty' | 'unknown'
+  category: 'auth' | 'balance' | 'rate_limit' | 'network' | 'timeout' | 'empty' | 'unknown'
   /** Shown to the user. */
   message: string
   /** True when trying again, unchanged, could plausibly work. */
   retryable: boolean
 }
 
+type Errorish = { status?: number; code?: string; errno?: string; message?: string; cause?: unknown }
+
+/**
+ * The SDK wraps transport failures, so the useful detail is nested: the outer
+ * error says only "Connection error." with an undefined code, while the real
+ * ETIMEDOUT sits on `cause`. Flatten the chain before matching.
+ */
+function chain(err: unknown, depth = 5): Errorish[] {
+  const links: Errorish[] = []
+  let current: unknown = err
+  while (current && typeof current === 'object' && links.length < depth) {
+    links.push(current as Errorish)
+    current = (current as Errorish).cause
+  }
+  return links
+}
+
 export function describeAiError(err: unknown): AiFailure {
-  const e = err as { status?: number; code?: string; message?: string }
-  const status = typeof e?.status === 'number' ? e.status : undefined
-  const code = typeof e?.code === 'string' ? e.code.toLowerCase() : ''
-  const text = typeof e?.message === 'string' ? e.message.toLowerCase() : ''
+  const links = chain(err)
+  const status = links.map(l => l.status).find(s => typeof s === 'number')
+  const code = links
+    .flatMap(l => [l.code, l.errno])
+    .filter((c): c is string => typeof c === 'string')
+    .join(' ')
+    .toLowerCase()
+  const text = links
+    .map(l => l.message)
+    .filter((m): m is string => typeof m === 'string')
+    .join(' ')
+    .toLowerCase()
+
+  // Unreachable host: distinct from a slow one, and distinct from a bad key.
+  // Checked before the generic timeout case, which these would also match.
+  if (
+    code.includes('etimedout') || code.includes('econnrefused') ||
+    code.includes('enotfound') || code.includes('econnreset') ||
+    code.includes('eai_again') || text.includes('connection error')
+  ) {
+    return {
+      category: 'network',
+      message: 'The server could not reach the AI service. This is a connectivity problem on our side, not something you did.',
+      retryable: false,
+    }
+  }
 
   // DashScope reports spend problems as 400/403 with a distinctive code rather
   // than the 402 the status code would suggest, so match on the code too.
@@ -51,7 +90,7 @@ export function describeAiError(err: unknown): AiFailure {
       retryable: true,
     }
   }
-  if (code === 'etimedout' || code === 'econnreset' || text.includes('timed out') || text.includes('timeout')) {
+  if (text.includes('timed out') || text.includes('timeout')) {
     return {
       category: 'timeout',
       message: 'The AI service took too long to respond. Please try again.',

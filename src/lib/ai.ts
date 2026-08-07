@@ -11,9 +11,20 @@ import { detectKbUniversity, buildGroundedRequirementsPrompt } from '@/lib/kb/un
 import { buildRoadmapKbQuery, kbFiltersForTarget, kbContextMessage } from '@/lib/kb/queries'
 import { extractCompleteYears, parseStreamedRoadmap } from '@/lib/roadmap-stream'
 
+// DashScope is region-split and the regions are separate account scopes: a
+// mainland key 401s on the international host and vice versa. Overridable by
+// env so moving between them (or to any OpenAI-compatible provider) is a config
+// change, not a deploy of new code. Keep src/lib/kb/embed.ts in step.
+export const QWEN_BASE_URL =
+  process.env.QWEN_BASE_URL ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+
 export const ai = new OpenAI({
   apiKey: process.env.QWEN_API_KEY ?? '',
-  baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  baseURL: QWEN_BASE_URL,
+  // Default is 2 retries. When the host is unreachable rather than busy, each
+  // attempt burns the full connect timeout, so retries turn one dead request
+  // into three and eat the whole serverless budget.
+  maxRetries: 1,
 })
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -256,17 +267,24 @@ export async function generateRoadmapStream(
   if (!process.env.QWEN_API_KEY) throw new Error('QWEN_API_KEY is not set in this environment')
 
   const deadline = Date.now() + budgetMs
-  const stream = await ai.chat.completions.create({
-    model: 'qwen-plus',
-    response_format: { type: 'json_object' },
-    temperature: 0.3,
-    stream: true,
-    messages: [
-      { role: 'system', content: ROADMAP_SYSTEM_PROMPT },
-      ...(grounding ? [{ role: 'system' as const, content: grounding }] : []),
-      { role: 'user', content: JSON.stringify(payload) },
-    ],
-  })
+  const stream = await ai.chat.completions.create(
+    {
+      model: 'qwen-plus',
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      stream: true,
+      messages: [
+        { role: 'system', content: ROADMAP_SYSTEM_PROMPT },
+        ...(grounding ? [{ role: 'system' as const, content: grounding }] : []),
+        { role: 'user', content: JSON.stringify(payload) },
+      ],
+    },
+    // The deadline below only advances once chunks arrive, so it cannot bound a
+    // connect that never completes — an unreachable host hung here for ~49s and
+    // took the request with it. This bounds the request itself; no retry,
+    // because a second full-length hang would outlive the function.
+    { timeout: budgetMs, maxRetries: 0 },
+  )
 
   let buffer = ''
   let emitted = 0

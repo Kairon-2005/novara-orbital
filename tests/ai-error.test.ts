@@ -38,7 +38,41 @@ describe('describeAiError', () => {
 
   it('recognises our own timeout errors', () => {
     expect(describeAiError(new Error('AI request timed out')).category).toBe('timeout')
-    expect(describeAiError({ code: 'ETIMEDOUT' }).category).toBe('timeout')
+    expect(describeAiError(new Error('kb search timed out after 6000ms')).category).toBe('timeout')
+  })
+
+  // Verbatim shape from the Vercel log: the outer error carries no status and no
+  // code, and the real cause is one level down. Matching only the top level
+  // filed this as "unknown" and told the user to just try again.
+  it('classifies an unreachable host from the nested cause', () => {
+    const wrapped = Object.assign(new Error('Connection error.'), {
+      status: undefined,
+      code: undefined,
+      cause: Object.assign(
+        new Error('request to https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions failed'),
+        { type: 'system', errno: 'ETIMEDOUT', code: 'ETIMEDOUT' },
+      ),
+    })
+    const f = describeAiError(wrapped)
+    expect(f.category).toBe('network')
+    expect(f.retryable).toBe(false)
+  })
+
+  it('catches the other unreachable-host codes', () => {
+    for (const code of ['ECONNREFUSED', 'ENOTFOUND', 'ECONNRESET', 'EAI_AGAIN']) {
+      expect(describeAiError({ cause: { code } }).category).toBe('network')
+    }
+  })
+
+  it('does not let a nested transport error mask a real auth status', () => {
+    const f = describeAiError(Object.assign(new Error('401 Incorrect API key provided'), { status: 401 }))
+    expect(f.category).toBe('auth')
+  })
+
+  it('stops walking a self-referential cause chain', () => {
+    const loop: { message: string; cause?: unknown } = { message: 'boom' }
+    loop.cause = loop
+    expect(describeAiError(loop).category).toBe('unknown')
   })
 
   it('recognises the empty-roadmap guard from normalizeGeneratedRoadmap', () => {

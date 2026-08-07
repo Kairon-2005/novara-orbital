@@ -4,9 +4,13 @@
 
 import OpenAI from 'openai'
 
+// Mirrors QWEN_BASE_URL in src/lib/ai.ts — duplicated rather than imported to
+// keep this module free of the cycle noted above. Both must point at the same
+// region, since the API key is only valid for one of them.
 const ai = new OpenAI({
   apiKey: process.env.QWEN_API_KEY ?? '',
-  baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  baseURL: process.env.QWEN_BASE_URL ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  maxRetries: 1,
 })
 
 const EMBED_TIMEOUT_MS = 30_000
