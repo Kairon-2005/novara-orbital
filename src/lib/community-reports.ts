@@ -12,12 +12,16 @@ import {
   type VerificationVerdict,
 } from '@/lib/community/verify'
 import { chatJson } from '@/lib/ai'
+import { AI_MODEL } from '@/lib/ai-config'
 import { reportToKbDoc } from '@/lib/community-kb'
 import { runDocIngest } from '@/lib/kb/ingest'
 import { qdrantConfigured, QdrantStore } from '@/lib/kb/store'
 import { embedTexts } from '@/lib/kb/embed'
 
-const VERIFY_MODEL = 'qwen-plus'
+// Recorded into verification_detail.model as provenance. chatJson is what
+// actually runs the call, so this has to track the same constant — hardcoded,
+// it would keep claiming qwen-plus after a provider switch.
+const VERIFY_MODEL = AI_MODEL
 
 export interface VerificationOutcome {
   status: VerificationStatus

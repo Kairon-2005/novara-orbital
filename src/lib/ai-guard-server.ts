@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/db/server'
 import { guardedAiCall, AiQuotaError, type AiUsageStore, type GuardedFeature } from './ai-guard'
+import { aiConfigured } from '@/lib/ai-config'
 
 function createAiUsageStore(): AiUsageStore {
   const admin = createAdminClient()
@@ -35,8 +36,11 @@ function createAiUsageStore(): AiUsageStore {
 
 /** Run an AI call under today's per-user budget for `feature`. */
 export function runGuardedAi<T>(userId: string, feature: GuardedFeature, fn: () => Promise<T>): Promise<T> {
-  if (!process.env.QWEN_API_KEY) {
-    return Promise.reject(new Error('QWEN_API_KEY is not configured'))
+  // Must ask ai-config, not process.env directly: the key may come from either
+  // AI_API_KEY or QWEN_API_KEY, and checking only the latter would reject every
+  // guarded call on a deployment configured with the newer name.
+  if (!aiConfigured()) {
+    return Promise.reject(new Error('AI_API_KEY/QWEN_API_KEY is not configured'))
   }
   return guardedAiCall(createAiUsageStore(), {
     userId,

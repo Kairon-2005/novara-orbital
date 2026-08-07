@@ -190,43 +190,7 @@ export type RoadmapAssessmentContext = {
   dimensions: { name: string; level: string; gaps: string[] }[]
 }
 
-export async function generateRoadmap(
-  profile: StudentProfile,
-  existingMilestones?: ExistingMilestone[],
-  timeline?: { currentYear: number; enrollmentYear: number },
-  assessment?: RoadmapAssessmentContext
-): Promise<GeneratedRoadmap> {
-  const now = new Date().getFullYear()
-  const currentYear = timeline?.currentYear ?? now
-  // Clamp the span so a bad value can't ask the model for dozens of years.
-  const enrollmentYear = Math.max(currentYear, Math.min(timeline?.enrollmentYear ?? currentYear + 4, currentYear + 8))
-
-  const payload: Record<string, unknown> = { profile, currentYear, enrollmentYear }
-  if (existingMilestones && existingMilestones.length > 0) payload.existingMilestones = existingMilestones
-  if (assessment) payload.assessment = assessment
-  const userContent = JSON.stringify(payload)
-
-  // Ground milestones (dates, requirements, pathway steps) in the knowledge
-  // base when it has matching content; otherwise generate exactly as before.
-  const kbHits = await searchKb(buildRoadmapKbQuery(profile), kbFiltersForTarget(profile.targetUniversity))
-  const grounding = kbContextMessage(buildKbContext(kbHits))
-
-  const response = await withTimeout(ai.chat.completions.create({
-    model: AI_MODEL,
-    response_format: { type: 'json_object' },
-    temperature: 0.3,
-    messages: [
-      { role: 'system', content: ROADMAP_SYSTEM_PROMPT },
-      ...(grounding ? [{ role: 'system' as const, content: grounding }] : []),
-      { role: 'user', content: userContent },
-    ],
-  }))
-
-  const parsed = parseJson<unknown>(response.choices[0].message.content, 'generateRoadmap')
-  return normalizeGeneratedRoadmap(parsed, profile)
-}
-
-// Streaming variant. Measured generation is 38–55s of mostly output tokens, so
+// Measured generation is 38–55s of mostly output tokens, so
 // waiting for the last byte means a ~50s spinner; the first token arrives in
 // ~240ms. Emitting each year as it closes turns that into a roadmap that fills
 // in as the student watches.
