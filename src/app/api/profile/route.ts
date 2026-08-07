@@ -42,10 +42,13 @@ export async function PATCH(request: Request) {
     if (field in body) updates[field] = body[field]
   }
 
+  // Upsert, not update: an UPDATE that matches no row succeeds silently, so a
+  // user whose student_profiles row is missing would finish onboarding, be told
+  // it saved, and then hit "Profile not found" on every AI feature. Upserting
+  // makes the row self-healing instead.
   const { error } = await supabase
     .from('student_profiles')
-    .update(updates)
-    .eq('user_id', session.user.id)
+    .upsert({ ...updates, user_id: session.user.id }, { onConflict: 'user_id' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })
