@@ -78,4 +78,24 @@ describe('searchKbWith', () => {
     await expect(searchKbWith('   ', {}, { store, embed: stubEmbed })).resolves.toEqual([])
     expect(store.lastSearch).toBeNull()
   })
+
+  // A hang used to be unbounded, so it burned the caller's serverless time budget
+  // and got the whole function killed. It must degrade like any other failure.
+  it('returns [] when the store hangs past the timeout', async () => {
+    const store = new StubStore()
+    store.search = () => new Promise(() => {}) // never settles
+    await expect(searchKbWith('q', {}, { store, embed: stubEmbed }, 20)).resolves.toEqual([])
+  })
+
+  it('returns [] when embedding hangs past the timeout', async () => {
+    const store = new StubStore()
+    const hangingEmbed = () => new Promise<number[][]>(() => {})
+    await expect(searchKbWith('q', {}, { store, embed: hangingEmbed }, 20)).resolves.toEqual([])
+  })
+
+  it('still returns hits when the search finishes inside the timeout', async () => {
+    const store = new StubStore([{ id: 'p1', score: 0.9, payload: payload() }])
+    const hits = await searchKbWith('gaokao requirements', {}, { store, embed: stubEmbed }, 5_000)
+    expect(hits).toHaveLength(1)
+  })
 })
