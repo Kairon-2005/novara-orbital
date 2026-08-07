@@ -7,6 +7,7 @@
 // slot in as an extra grounding message (see docs/PRD-knowledge-base.md).
 
 import { ai, withTimeout, parseJson } from '@/lib/ai'
+import { AI_MODEL } from '@/lib/ai-config'
 import { normalizeAssessment } from '@/lib/assessment'
 import { ADMISSION_DIMENSIONS, type PortfolioAssessment } from '@/types/assessment'
 import { searchKb } from '@/lib/kb/retrieve'
@@ -72,7 +73,7 @@ export async function assessPortfolio(input: AssessmentInput): Promise<Portfolio
   const grounding = kbContextMessage(buildKbContext(kbHits))
 
   const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
+    model: AI_MODEL,
     response_format: { type: 'json_object' },
     temperature: 0.2,
     messages: [

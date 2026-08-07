@@ -1,8 +1,8 @@
-// Qwen AI client — OpenAI-compatible API
-// To swap to OpenAI: change baseURL to undefined and use OPENAI_API_KEY
-// To swap to Kimi: use 'https://api.moonshot.cn/v1' and KIMI_API_KEY
+// AI client — speaks the OpenAI-compatible dialect, so the provider is chosen
+// entirely by config (see src/lib/ai-config.ts). Defaults to Qwen/DashScope.
 
 import OpenAI from 'openai'
+import { AI_API_KEY, AI_BASE_URL, AI_MODEL, AI_MODEL_STRONG, aiConfigured } from '@/lib/ai-config'
 import type { StudentProfile, GeneratedRoadmap } from '@/types/roadmap'
 import type { ChatJson } from '@/lib/community/verify'
 import { searchKb } from '@/lib/kb/retrieve'
@@ -11,16 +11,9 @@ import { detectKbUniversity, buildGroundedRequirementsPrompt } from '@/lib/kb/un
 import { buildRoadmapKbQuery, kbFiltersForTarget, kbContextMessage } from '@/lib/kb/queries'
 import { extractCompleteYears, parseStreamedRoadmap } from '@/lib/roadmap-stream'
 
-// DashScope is region-split and the regions are separate account scopes: a
-// mainland key 401s on the international host and vice versa. Overridable by
-// env so moving between them (or to any OpenAI-compatible provider) is a config
-// change, not a deploy of new code. Keep src/lib/kb/embed.ts in step.
-export const QWEN_BASE_URL =
-  process.env.QWEN_BASE_URL ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-
 export const ai = new OpenAI({
-  apiKey: process.env.QWEN_API_KEY ?? '',
-  baseURL: QWEN_BASE_URL,
+  apiKey: AI_API_KEY,
+  baseURL: AI_BASE_URL,
   // Default is 2 retries. When the host is unreachable rather than busy, each
   // attempt burns the full connect timeout, so retries turn one dead request
   // into three and eat the whole serverless budget.
@@ -72,7 +65,7 @@ export function parseJson<T>(content: string | null | undefined, label: string):
 // openai import and remains unit-testable with a fake.
 export const chatJson: ChatJson = async (system, user) => {
   const res = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
+    model: AI_MODEL,
     response_format: { type: 'json_object' },
     temperature: 0.1,
     messages: [
@@ -219,7 +212,7 @@ export async function generateRoadmap(
   const grounding = kbContextMessage(buildKbContext(kbHits))
 
   const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
+    model: AI_MODEL,
     response_format: { type: 'json_object' },
     temperature: 0.3,
     messages: [
@@ -264,12 +257,12 @@ export async function generateRoadmapStream(
   // Fail loudly on a misconfigured environment. Without this the SDK sends an
   // empty bearer token and the deployment looks like an upstream auth problem,
   // which sends you looking at the AI provider instead of at your env vars.
-  if (!process.env.QWEN_API_KEY) throw new Error('QWEN_API_KEY is not set in this environment')
+  if (!aiConfigured()) throw new Error('AI_API_KEY/QWEN_API_KEY is not set in this environment')
 
   const deadline = Date.now() + budgetMs
   const stream = await ai.chat.completions.create(
     {
-      model: 'qwen-plus',
+      model: AI_MODEL,
       response_format: { type: 'json_object' },
       temperature: 0.3,
       stream: true,
@@ -312,7 +305,7 @@ export async function translateToChineseWithSummary(
   englishText: string
 ): Promise<{ translation: string; summary: string }> {
   const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-max',
+    model: AI_MODEL_STRONG,
     response_format: { type: 'json_object' },
     temperature: 0.2,
     messages: [
@@ -333,7 +326,7 @@ Output JSON: { "translation": "<full Chinese translation>", "summary": "<3-sente
 
 export async function translateParentMessage(chineseMessage: string): Promise<string> {
   const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-max',
+    model: AI_MODEL_STRONG,
     temperature: 0.2,
     messages: [
       {
@@ -364,7 +357,7 @@ export async function fetchUniversityRequirements(
     )
     if (hits.length > 0) {
       const response = await withTimeout(ai.chat.completions.create({
-        model: 'qwen-plus',
+        model: AI_MODEL,
         temperature: 0.2,
         messages: [
           { role: 'system', content: buildGroundedRequirementsPrompt(buildKbContext(hits)) },
@@ -383,7 +376,7 @@ export async function fetchUniversityRequirements(
   }
 
   const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
+    model: AI_MODEL,
     temperature: 0.2,
     messages: [
       {
@@ -442,7 +435,7 @@ export async function fetchApplicationPlan(
     : `You build an application plan for a Chinese international student from your general knowledge. Be conservative with exact dates; ALWAYS include the university's official undergraduate-admissions URL in "sources".\n\n${PLAN_OUTPUT_SPEC}`
 
   const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
+    model: AI_MODEL,
     response_format: { type: 'json_object' },
     temperature: 0.2,
     messages: [
@@ -491,7 +484,7 @@ export async function fetchApplicationPlanFromSource(
   const system = `You build an application plan for a Chinese international student STRICTLY from the official page content provided below. Extract ONLY dates and requirements that appear in that content — never invent or infer dates that are not present. Omit any field the content does not state.\n\n${PLAN_OUTPUT_SPEC}`
 
   const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
+    model: AI_MODEL,
     response_format: { type: 'json_object' },
     temperature: 0.1,
     messages: [

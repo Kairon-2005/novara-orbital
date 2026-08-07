@@ -3,6 +3,7 @@
 // the assessment can reason over. Output is funnelled through normalizeClassification.
 
 import { ai, withTimeout, parseJson } from '@/lib/ai'
+import { AI_MODEL } from '@/lib/ai-config'
 import { normalizeClassification } from '@/lib/evidence'
 import { ADMISSION_DIMENSIONS } from '@/types/assessment'
 import { EVIDENCE_TYPES, type EvidenceClassification } from '@/types/evidence'
@@ -34,7 +35,7 @@ export async function classifyEvidence(input: {
   text: string
 }): Promise<EvidenceClassification> {
   const response = await withTimeout(ai.chat.completions.create({
-    model: 'qwen-plus',
+    model: AI_MODEL,
     response_format: { type: 'json_object' },
     temperature: 0.2,
     messages: [

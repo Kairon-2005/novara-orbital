@@ -1,15 +1,14 @@
-// DashScope embedding adapter (thin seam).
-// Has its own client instance (same key/baseURL as src/lib/ai.ts) so the kb
-// module never imports ai.ts — ai.ts imports kb, and a cycle would be fragile.
+// Embedding adapter (thin seam).
+// Has its own client instance so the kb module never imports ai.ts — ai.ts
+// imports kb, and a cycle would be fragile. Config comes from the shared
+// ai-config module, which has no imports of its own.
 
 import OpenAI from 'openai'
+import { AI_API_KEY, AI_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from '@/lib/ai-config'
 
-// Mirrors QWEN_BASE_URL in src/lib/ai.ts — duplicated rather than imported to
-// keep this module free of the cycle noted above. Both must point at the same
-// region, since the API key is only valid for one of them.
 const ai = new OpenAI({
-  apiKey: process.env.QWEN_API_KEY ?? '',
-  baseURL: process.env.QWEN_BASE_URL ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  apiKey: AI_API_KEY,
+  baseURL: AI_BASE_URL,
   maxRetries: 1,
 })
 
@@ -24,8 +23,8 @@ function withTimeout<T>(promise: Promise<T>, ms = EMBED_TIMEOUT_MS): Promise<T> 
   ])
 }
 
-export const EMBEDDING_MODEL = 'text-embedding-v3'
-export const EMBEDDING_DIMENSIONS = 1024
+// Re-exported so existing importers (ingest, store, scripts) keep working.
+export { EMBEDDING_MODEL, EMBEDDING_DIMENSIONS }
 
 /** Embed up to 10 texts per call (DashScope batch cap is enforced by callers). */
 export async function embedTexts(texts: string[]): Promise<number[][]> {
