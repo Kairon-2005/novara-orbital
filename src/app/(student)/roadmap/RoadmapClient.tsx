@@ -7,8 +7,9 @@ import { useToast } from '@/components/ui/toast'
 import { useLocale } from '@/components/shared/LocaleProvider'
 import type { Locale } from '@/lib/locale'
 import { summarizeProgress } from '@/lib/gamification'
+import { parseSseFrames } from '@/lib/sse'
 import type { MockMilestone, MilestoneType, MockAchievement, MockDocument } from '@/types/models'
-import type { GeneratedRoadmap, RoadmapYear } from '@/types/roadmap'
+import type { GeneratedRoadmap, RoadmapYear, StudentProfile } from '@/types/roadmap'
 
 // ── copy ─────────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,12 @@ const T = {
     genFailed: 'Generation failed',
     emptyRoadmap: 'The AI returned an empty roadmap. Please try again.',
     networkError: 'Network error. Please try again.',
+    serverError: (status: number) =>
+      status === 504 || status === 502
+        ? 'Generation took too long and the server gave up. Please try again.'
+        : `Server error (HTTP ${status}). Please try again.`,
+    partialRoadmap: (n: number) =>
+      `Generation was cut short — showing the ${n} year${n === 1 ? '' : 's'} that finished. Generate again for the full plan.`,
     adoptedTitle: '🚀 Roadmap adopted!',
     adoptedDesc: 'Your milestones are now being tracked.',
     saveFailed: 'Save failed',
@@ -105,6 +112,11 @@ const T = {
     genFailed: '生成失败',
     emptyRoadmap: 'AI 返回了空的路线图，请重试。',
     networkError: '网络错误，请重试。',
+    serverError: (status: number) =>
+      status === 504 || status === 502
+        ? '生成耗时过长，服务器已中断。请重试。'
+        : `服务器错误（HTTP ${status}），请重试。`,
+    partialRoadmap: (n: number) => `生成中断 — 已显示完成的 ${n} 个年度。可重新生成以获取完整规划。`,
     adoptedTitle: '🚀 路线图已采用！',
     adoptedDesc: '你的里程碑已开始跟踪。',
     saveFailed: '保存失败',
@@ -457,6 +469,7 @@ function AiRoadmapModal({
 }) {
   const t = T[useLocale()]
   const totalMs = roadmap?.years.reduce((n, y) => n + y.milestones.length, 0) ?? 0
+  const hasYears = (roadmap?.years.length ?? 0) > 0
 
   return (
     <div
@@ -470,7 +483,7 @@ function AiRoadmapModal({
           <div>
             <div className="font-display font-bold text-[16px] text-[var(--t900)]">{t.aiPreviewTitle}</div>
             <div className="text-[12px] text-[var(--t500)] mt-0.5">
-              {loading ? t.aiGenerating : t.aiSummary(totalMs, roadmap?.years.length ?? 0)}
+              {loading && !hasYears ? t.aiGenerating : t.aiSummary(totalMs, roadmap?.years.length ?? 0)}
             </div>
           </div>
           <button onClick={onClose} className="text-[var(--t300)] hover:text-[var(--t700)] p-1 transition">
@@ -482,7 +495,9 @@ function AiRoadmapModal({
 
         {/* Body */}
         <div className="overflow-y-auto flex-1 px-6 py-4">
-          {loading && (
+          {/* Years stream in one at a time, so the full-page spinner only holds
+              until the first one lands (~1s) instead of the whole generation. */}
+          {loading && !hasYears && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <svg className="animate-spin w-8 h-8 text-[var(--blue)]" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -491,7 +506,7 @@ function AiRoadmapModal({
               <p className="text-[13px] text-[var(--t500)]">{t.aiCrafting}</p>
             </div>
           )}
-          {!loading && roadmap && roadmap.years.map((yr: RoadmapYear) => (
+          {roadmap && roadmap.years.map((yr: RoadmapYear) => (
             <div key={yr.year} className="mb-5">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-7 h-7 rounded-full bg-[var(--blue)] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">
@@ -521,9 +536,19 @@ function AiRoadmapModal({
               </div>
             </div>
           ))}
+          {loading && hasYears && (
+            <div className="flex items-center gap-2 py-3 text-[12px] text-[var(--t500)]">
+              <svg className="animate-spin w-3.5 h-3.5 text-[var(--blue)]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              {t.aiCrafting}
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
+        {/* Footer — adopting is only offered once the stream has finished, so a
+            half-written roadmap can't be saved by an eager click. */}
         {!loading && roadmap && (
           <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-between gap-3">
             <p className="text-[11px] text-[var(--t500)]">{t.adoptNote}</p>
@@ -592,20 +617,87 @@ export default function RoadmapClient({
 
     try {
       const res = await fetch('/api/roadmap/generate', { method: 'POST' })
-      const json = await res.json() as { roadmap?: GeneratedRoadmap; error?: string; message?: string }
 
-      if (!res.ok) {
-        // Close the modal so the error surfaces as a toast instead of a blank dialog.
+      // The happy path streams SSE; anything that failed before the stream
+      // opened is JSON with a real status. Parse that defensively — a killed
+      // function or a crash returns HTML, and calling res.json() on it throws,
+      // which used to be reported as "Network error" and hid the real cause.
+      if (!res.headers.get('content-type')?.includes('text/event-stream')) {
+        const raw = await res.text()
+        let json: { error?: string; message?: string } = {}
+        try {
+          json = JSON.parse(raw) as typeof json
+        } catch {
+          setShowAiModal(false)
+          setAiError(res.ok ? t.genFailed : t.serverError(res.status))
+          return
+        }
         setShowAiModal(false)
-        setAiError(json.message ?? json.error ?? t.genFailed)
+        setAiError(json.message ?? json.error ?? (res.ok ? t.genFailed : t.serverError(res.status)))
         return
       }
-      if (!json.roadmap?.years?.length) {
+
+      if (!res.body) {
         setShowAiModal(false)
-        setAiError(t.emptyRoadmap)
+        setAiError(t.genFailed)
         return
       }
-      setAiRoadmap(json.roadmap)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let frame = ''
+      let profile: StudentProfile | null = null
+      const years: RoadmapYear[] = []
+      let final: GeneratedRoadmap | null = null
+      let streamError: string | null = null
+
+      // A frame can straddle chunk boundaries, so the leftover tail is carried
+      // into the next read (see parseSseFrames).
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const { events, rest } = parseSseFrames(frame + decoder.decode(value, { stream: true }))
+        frame = rest
+
+        for (const { event, data } of events) {
+          let payload: { generatedFor?: StudentProfile; roadmap?: GeneratedRoadmap; error?: string } & RoadmapYear
+          try {
+            payload = JSON.parse(data)
+          } catch {
+            continue // a torn frame is not worth failing the whole stream over
+          }
+
+          if (event === 'start') {
+            profile = payload.generatedFor ?? null
+          } else if (event === 'year') {
+            years.push(payload)
+            if (profile) setAiRoadmap({ years: [...years], generatedFor: profile })
+          } else if (event === 'done') {
+            final = payload.roadmap ?? null
+          } else if (event === 'error') {
+            streamError = payload.error ?? t.genFailed
+          }
+        }
+      }
+
+      if (streamError) {
+        setShowAiModal(false)
+        setAiError(streamError)
+        return
+      }
+      if (final?.years?.length) {
+        setAiRoadmap(final)
+        return
+      }
+      // No `done` event but years arrived: the function was cut off mid-stream.
+      // Keep what completed rather than discarding a mostly-finished roadmap.
+      if (years.length && profile) {
+        setAiRoadmap({ years, generatedFor: profile })
+        setAiError(t.partialRoadmap(years.length))
+        return
+      }
+      setShowAiModal(false)
+      setAiError(t.emptyRoadmap)
     } catch {
       setShowAiModal(false)
       setAiError(t.networkError)

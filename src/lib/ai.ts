@@ -9,6 +9,7 @@ import { searchKb } from '@/lib/kb/retrieve'
 import { buildKbContext, formatCitations } from '@/lib/kb/context'
 import { detectKbUniversity, buildGroundedRequirementsPrompt } from '@/lib/kb/university'
 import { buildRoadmapKbQuery, kbFiltersForTarget, kbContextMessage } from '@/lib/kb/queries'
+import { extractCompleteYears, parseStreamedRoadmap } from '@/lib/roadmap-stream'
 
 export const ai = new OpenAI({
   apiKey: process.env.QWEN_API_KEY ?? '',
@@ -20,6 +21,14 @@ export const ai = new OpenAI({
 // The PRD targets <10s for roadmap generation; cap every call so a hung
 // upstream surfaces as a clean error instead of holding the request open.
 const AI_TIMEOUT_MS = 45_000
+
+// Roadmap generation is the one call that does not fit the cap above: measured
+// at 38–55s across runs, so a 45s limit failed it outright on slower runs. The
+// streaming path gets its own, larger budget, sized to fit the route's 60s
+// maxDuration alongside KB retrieval (6s) and request overhead. Unlike the
+// timeout above, exhausting this budget salvages the completed years instead of
+// throwing — see generateRoadmapStream.
+export const AI_STREAM_BUDGET_MS = 50_000
 
 export function withTimeout<T>(promise: Promise<T>, ms = AI_TIMEOUT_MS): Promise<T> {
   return Promise.race([
@@ -88,34 +97,37 @@ export function normalizeGeneratedRoadmap(raw: unknown, profile: StudentProfile)
     throw new Error('generateRoadmap: AI response missing a non-empty "years" array')
   }
 
-  const normalized: GeneratedRoadmap['years'] = years.map((y) => {
-    const yr = y as Record<string, unknown>
-    const yearNum = typeof yr.year === 'number' ? yr.year : Number(yr.year)
-    const rawMilestones = Array.isArray(yr.milestones) ? yr.milestones : []
-    const milestones = rawMilestones
-      .map((m) => {
-        const ms = m as Record<string, unknown>
-        const title = typeof ms.title === 'string' ? ms.title.trim() : ''
-        if (!title) return null // a milestone with no title is unusable — drop it
-        return {
-          type: coerceType(ms.type),
-          title,
-          description: typeof ms.description === 'string' ? ms.description : '',
-          month: coerceMonth(ms.month),
-          dueDate: typeof ms.dueDate === 'string' ? ms.dueDate : undefined,
-        }
-      })
-      .filter((m): m is NonNullable<typeof m> => m !== null)
+  return { years: years.map(normalizeYear), generatedFor: profile }
+}
 
-    return {
-      year: Number.isFinite(yearNum) ? yearNum : new Date().getFullYear(),
-      yearLabel: typeof yr.yearLabel === 'string' ? yr.yearLabel : String(yearNum),
-      keyMilestone: typeof yr.keyMilestone === 'string' ? yr.keyMilestone : '',
-      milestones,
-    }
-  })
+// One year, coerced. Split out from normalizeGeneratedRoadmap so a streamed
+// year can be normalised the moment it closes — the client then renders the
+// same shape whether it arrived mid-stream or in the final payload.
+export function normalizeYear(y: unknown): GeneratedRoadmap['years'][number] {
+  const yr = y as Record<string, unknown>
+  const yearNum = typeof yr.year === 'number' ? yr.year : Number(yr.year)
+  const rawMilestones = Array.isArray(yr.milestones) ? yr.milestones : []
+  const milestones = rawMilestones
+    .map((m) => {
+      const ms = m as Record<string, unknown>
+      const title = typeof ms.title === 'string' ? ms.title.trim() : ''
+      if (!title) return null // a milestone with no title is unusable — drop it
+      return {
+        type: coerceType(ms.type),
+        title,
+        description: typeof ms.description === 'string' ? ms.description : '',
+        month: coerceMonth(ms.month),
+        dueDate: typeof ms.dueDate === 'string' ? ms.dueDate : undefined,
+      }
+    })
+    .filter((m): m is NonNullable<typeof m> => m !== null)
 
-  return { years: normalized, generatedFor: profile }
+  return {
+    year: Number.isFinite(yearNum) ? yearNum : new Date().getFullYear(),
+    yearLabel: typeof yr.yearLabel === 'string' ? yr.yearLabel : String(yearNum),
+    keyMilestone: typeof yr.keyMilestone === 'string' ? yr.keyMilestone : '',
+    milestones,
+  }
 }
 
 export type ExistingMilestone = {
@@ -208,6 +220,67 @@ export async function generateRoadmap(
 
   const parsed = parseJson<unknown>(response.choices[0].message.content, 'generateRoadmap')
   return normalizeGeneratedRoadmap(parsed, profile)
+}
+
+// Streaming variant. Measured generation is 38–55s of mostly output tokens, so
+// waiting for the last byte means a ~50s spinner; the first token arrives in
+// ~240ms. Emitting each year as it closes turns that into a roadmap that fills
+// in as the student watches.
+//
+// The budget is a hard stop, not a failure: whatever years completed are kept
+// and returned. That matters because the caller's serverless function is killed
+// at maxDuration regardless — better to hand back four usable years than to
+// throw away everything the model already wrote.
+export async function generateRoadmapStream(
+  profile: StudentProfile,
+  existingMilestones: ExistingMilestone[] | undefined,
+  timeline: { currentYear: number; enrollmentYear: number } | undefined,
+  assessment: RoadmapAssessmentContext | undefined,
+  onYear: (year: GeneratedRoadmap['years'][number]) => void,
+  budgetMs: number = AI_STREAM_BUDGET_MS
+): Promise<GeneratedRoadmap> {
+  const now = new Date().getFullYear()
+  const currentYear = timeline?.currentYear ?? now
+  const enrollmentYear = Math.max(currentYear, Math.min(timeline?.enrollmentYear ?? currentYear + 4, currentYear + 8))
+
+  const payload: Record<string, unknown> = { profile, currentYear, enrollmentYear }
+  if (existingMilestones && existingMilestones.length > 0) payload.existingMilestones = existingMilestones
+  if (assessment) payload.assessment = assessment
+
+  const kbHits = await searchKb(buildRoadmapKbQuery(profile), kbFiltersForTarget(profile.targetUniversity))
+  const grounding = kbContextMessage(buildKbContext(kbHits))
+
+  const deadline = Date.now() + budgetMs
+  const stream = await ai.chat.completions.create({
+    model: 'qwen-plus',
+    response_format: { type: 'json_object' },
+    temperature: 0.3,
+    stream: true,
+    messages: [
+      { role: 'system', content: ROADMAP_SYSTEM_PROMPT },
+      ...(grounding ? [{ role: 'system' as const, content: grounding }] : []),
+      { role: 'user', content: JSON.stringify(payload) },
+    ],
+  })
+
+  let buffer = ''
+  let emitted = 0
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content
+    if (delta) {
+      buffer += delta
+      const years = extractCompleteYears(buffer)
+      for (; emitted < years.length; emitted++) onYear(normalizeYear(years[emitted]))
+    }
+    if (Date.now() > deadline) {
+      console.warn(`[generateRoadmapStream] budget of ${budgetMs}ms exhausted — salvaging ${emitted} year(s)`)
+      break
+    }
+  }
+
+  // normalizeGeneratedRoadmap still throws when nothing usable arrived, so a
+  // stream that died before the first year closed surfaces as a clean failure.
+  return normalizeGeneratedRoadmap(parseStreamedRoadmap(buffer), profile)
 }
 
 // ── Translation (English → Chinese) ──────────────────────────
