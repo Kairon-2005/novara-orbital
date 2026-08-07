@@ -12,6 +12,7 @@ import { createRouteClient } from '@/db/server'
 import { getRoadmapQuota, consumeRoadmapQuota, FREE_GENERATIONS_PER_YEAR } from '@/lib/roadmap-quota'
 import { getLatestAssessment } from '@/lib/data'
 import { generateRoadmapStream } from '@/lib/ai'
+import { describeAiError } from '@/lib/ai-error'
 import type { ExistingMilestone, RoadmapAssessmentContext } from '@/lib/ai'
 import type { StudentProfile } from '@/types/roadmap'
 import { ADMISSION_DIMENSIONS } from '@/types/assessment'
@@ -138,8 +139,15 @@ export async function POST() {
         // The response is already 200 by the time we get here, so the failure
         // has to travel as an event — the client treats it the same as a
         // non-OK response.
-        console.error('[roadmap/generate]', err)
-        send('error', { error: 'AI generation failed. Please try again.' })
+        const failure = describeAiError(err)
+        const e = err as { status?: number; code?: string; message?: string }
+        // Log the category alongside the raw shape: "unknown" showing up here is
+        // the signal that describeAiError needs another case.
+        console.error(
+          `[roadmap/generate] ${failure.category} (retryable=${failure.retryable}) status=${e?.status} code=${e?.code}`,
+          err,
+        )
+        send('error', { error: failure.message, category: failure.category, retryable: failure.retryable })
       } finally {
         controller.close()
       }

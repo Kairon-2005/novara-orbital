@@ -250,6 +250,11 @@ export async function generateRoadmapStream(
   const kbHits = await searchKb(buildRoadmapKbQuery(profile), kbFiltersForTarget(profile.targetUniversity))
   const grounding = kbContextMessage(buildKbContext(kbHits))
 
+  // Fail loudly on a misconfigured environment. Without this the SDK sends an
+  // empty bearer token and the deployment looks like an upstream auth problem,
+  // which sends you looking at the AI provider instead of at your env vars.
+  if (!process.env.QWEN_API_KEY) throw new Error('QWEN_API_KEY is not set in this environment')
+
   const deadline = Date.now() + budgetMs
   const stream = await ai.chat.completions.create({
     model: 'qwen-plus',
